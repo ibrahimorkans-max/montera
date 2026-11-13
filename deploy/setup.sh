@@ -36,8 +36,12 @@ pm2 startOrReload ecosystem.config.cjs
 pm2 save
 sudo env PATH="$PATH" pm2 startup systemd -u "$USER" --hp "$HOME" >/dev/null
 
-sleep 2
-curl -fsS http://127.0.0.1:4000/health && echo
+echo "==> Waiting for the API to answer"
+for i in $(seq 1 30); do
+  if curl -fsS http://127.0.0.1:4000/health; then echo; break; fi
+  if [ "$i" = 30 ]; then echo "The API did not start. Check: pm2 logs monetra-api --lines 40"; fi
+  sleep 1
+done
 
 if [ -n "$DOMAIN" ]; then
   echo "==> Configuring Nginx for $DOMAIN"
