@@ -4,8 +4,13 @@ import { engine } from './engine';
 import { local, secure } from './storage';
 import type { User } from './shared';
 
-/** Set EXPO_PUBLIC_API_URL to your computer's LAN address when running on a phone. */
-export const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4000').replace(/\/$/, '');
+/** Live server used by release builds. */
+export const PRODUCTION_API_URL = 'https://monetra.zhtrader.com';
+/**
+ * Development uses this computer (set EXPO_PUBLIC_API_URL to its LAN address when testing on a phone);
+ * release builds use the live server. EXPO_PUBLIC_API_URL always wins when set.
+ */
+export const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? (__DEV__ ? 'http://localhost:4000' : PRODUCTION_API_URL)).replace(/\/$/, '');
 
 const REFRESH_KEY = 'millnexa.refresh';
 const USER_KEY = 'millnexa.user';

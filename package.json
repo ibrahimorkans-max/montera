@@ -1,0 +1,12 @@
+{
+  "name": "monetra",
+  "private": true,
+  "description": "Monetra API entry point for hosting panels that run `npm install` and `npm start` at the repository root.",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "postinstall": "npm ci --prefix apps/api --omit=dev",
+    "start": "npm start --prefix apps/api"
+  }
+}

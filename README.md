@@ -50,7 +50,7 @@ cd apps/mobile && npx tsc --noEmit
 
 ## Deploying
 
-See [DEPLOY.md](DEPLOY.md). On an Ubuntu VPS: clone this repository, then `bash deploy/setup.sh api.yourdomain.com`.
+See [DEPLOY.md](DEPLOY.md). On an Ubuntu VPS: clone this repository, then `bash deploy/setup.sh monetra.zhtrader.com`.
 
 ## Built so far
 
