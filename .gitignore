@@ -1,0 +1,21 @@
+node_modules/
+.expo/
+dist/
+web-build/
+
+# Databases, backups and secrets: never commit
+apps/api/data/
+data/
+backups/
+*.db
+*.db-shm
+*.db-wal
+.env
+.env.*
+!.env.example
+
+# Local tooling and scratch
+.claude/
+*.log
+*.zip
+montera/

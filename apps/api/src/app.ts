@@ -31,7 +31,13 @@ const LOCK_MINUTES = 15;
 
 export function createApp(db: Db) {
   const app = express();
+  app.set('trust proxy', 1); // behind Nginx: see the visitor's address, not the proxy's
   app.use(cors());
+  // Public check for uptime monitors and deploy scripts.
+  app.get('/health', (_req, res) => {
+    db.get('select 1');
+    res.json({ ok: true, service: 'monetra-api', time: now() });
+  });
   app.use(express.json({ limit: '6mb' }));
 
   const requireAuth = makeRequireAuth((sid) => !!db.get("select 1 from auth_session where id = ? and revoked_at is null and expires_at > ?", sid, now()));

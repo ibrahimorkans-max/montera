@@ -1,3 +1,4 @@
+import './env';
 /**
  * Demo data for local development. Run: npm run seed
  * Sign in with DEMO_EMAIL / DEMO_PASSWORD below (override with env vars of the same name).
