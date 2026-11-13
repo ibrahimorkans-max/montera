@@ -53,6 +53,8 @@ if [ -n "$DOMAIN" ]; then
 fi
 
 echo "==> Daily database backup at 02:30 (kept 14 days)"
-( crontab -l 2>/dev/null | grep -v 'deploy/backup.mjs' ; echo "30 2 * * * cd $API_DIR && node $APP_DIR/deploy/backup.mjs >> $APP_DIR/backups/backup.log 2>&1" ) | crontab -
+# (`crontab -l` fails when there is no crontab yet and grep fails on empty input; neither may stop the script.)
+CRON_LINE="30 2 * * * cd $API_DIR && $(command -v node) $APP_DIR/deploy/backup.mjs >> $APP_DIR/backups/backup.log 2>&1"
+{ { crontab -l 2>/dev/null || true; } | { grep -v 'deploy/backup.mjs' || true; }; echo "$CRON_LINE"; } | crontab -
 
 echo "Done. Logs: pm2 logs monetra-api"
