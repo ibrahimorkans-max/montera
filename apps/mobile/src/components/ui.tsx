@@ -23,7 +23,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme, type Theme } from '@/lib/app-context';
+import { ToastView, useTheme, type Theme } from '@/lib/app-context';
 import { formatMoney, type InvoiceDisplayStatus } from '@/lib/shared';
 
 export type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -588,6 +588,7 @@ export function CalendarPicker({ visible, title, value, onPick, onClose }: { vis
           </Row>
         </View>
       </View>
+      <ToastView />
     </Modal>
   );
 }
@@ -712,6 +713,7 @@ export function Select<T>({
             )}
           />
         </View>
+        <ToastView />
       </Modal>
     </View>
   );
@@ -738,6 +740,7 @@ export function Sheet({ visible, title, onClose, children }: { visible: boolean;
           </View>
         </View>
       </RevealContext.Provider>
+      <ToastView />
     </Modal>
   );
 }

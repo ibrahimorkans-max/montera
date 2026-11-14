@@ -118,10 +118,12 @@ export default function Finance() {
     if (!amount || amount <= 0) return toast('Enter the amount', 'error');
     if (!form.category.trim()) return toast('Choose a category', 'error');
     if (!isDate(form.date)) return toast('Enter a valid date', 'error');
-    if (!form.businessId) return toast('Choose a business', 'error');
+    // the form may have opened before the business list loaded; with one business there is no picker
+    const businessId = form.businessId || (businesses.data?.length === 1 ? businesses.data[0].id : '');
+    if (!businessId) return toast('Choose a business', 'error');
     setBusy(true);
     try {
-      const { id, amount: _typed, accountId, ...rest } = form;
+      const { id, amount: _typed, accountId, ...rest } = { ...form, businessId };
       await api(id ? `/finance/entries/${id}` : '/finance/entries', { method: id ? 'PUT' : 'POST', body: { ...rest, accountId: accountId || null, category: form.category.trim(), amount } });
       toast(form.type === 'income' ? 'Money in recorded' : 'Money out recorded');
       setForm(null);

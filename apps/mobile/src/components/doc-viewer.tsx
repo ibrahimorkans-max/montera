@@ -4,7 +4,7 @@ import { Modal, Platform, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { captureRef } from 'react-native-view-shot';
 import { WebView } from 'react-native-webview';
-import { useTheme, useToast } from '@/lib/app-context';
+import { ToastView, useTheme, useToast } from '@/lib/app-context';
 import { downloadImageInBrowser, type ImageFormat } from '@/lib/export-image';
 import { PAPERS, PAPER_SIZE, printDoc, sharePdf, type Paper } from '@/lib/pdf';
 import { INVOICE_TEMPLATES, INVOICE_TEMPLATE_LABELS, type InvoiceTemplate } from '@/lib/shared';
@@ -151,6 +151,7 @@ export function DocumentViewer({
           </Row>
         </View>
       </View>
+      <ToastView />
     </Modal>
   );
 }

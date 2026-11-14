@@ -78,6 +78,26 @@ const deviceName = `${Platform.OS} app`;
 type ToastKind = 'success' | 'error';
 const ToastCtx = createContext<(message: string, kind?: ToastKind) => void>(() => {});
 export const useToast = () => useContext(ToastCtx);
+type ToastState = { toast: { message: string; kind: ToastKind } | null; opacity: Animated.Value };
+const ToastStateCtx = createContext<ToastState | null>(null);
+
+/**
+ * Draws the current message. The app renders one at the root; every Modal (sheets, pickers) renders
+ * its own as well, because on Android a Modal is a separate window that covers the root one.
+ */
+export function ToastView() {
+  const s = useContext(ToastStateCtx);
+  const { theme } = useContext(ThemeCtx);
+  if (!s?.toast) return null;
+  return (
+    <Animated.View
+      pointerEvents="none"
+      accessibilityLiveRegion="polite"
+      style={[styles.toast, { opacity: s.opacity, backgroundColor: s.toast.kind === 'error' ? theme.danger : theme.success }]}>
+      <Text style={[styles.toastText, { color: theme.dark ? '#0A0E13' : '#FFFFFF' }]}>{s.toast.message}</Text>
+    </Animated.View>
+  );
+}
 
 // ---------------------------------------------------------------- provider
 
@@ -167,20 +187,16 @@ export function AppProviders({ children }: { children: ReactNode }) {
     },
     [opacity],
   );
+  const toastState = useMemo(() => ({ toast, opacity }), [toast, opacity]);
 
   return (
     <ThemeCtx.Provider value={themeValue}>
       <AuthCtx.Provider value={auth}>
         <ToastCtx.Provider value={show}>
-          {children}
-          {toast && (
-            <Animated.View
-              pointerEvents="none"
-              accessibilityLiveRegion="polite"
-              style={[styles.toast, { opacity, backgroundColor: toast.kind === 'error' ? theme.danger : theme.success }]}>
-              <Text style={[styles.toastText, { color: theme.dark ? '#0A0E13' : '#FFFFFF' }]}>{toast.message}</Text>
-            </Animated.View>
-          )}
+          <ToastStateCtx.Provider value={toastState}>
+            {children}
+            <ToastView />
+          </ToastStateCtx.Provider>
         </ToastCtx.Provider>
       </AuthCtx.Provider>
     </ThemeCtx.Provider>
