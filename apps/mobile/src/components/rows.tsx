@@ -103,6 +103,8 @@ export function InstallmentItem({ item: s, payAmount }: { item: InstallmentRow; 
   const { can } = useAuth();
   const paid = s.paid ?? 0;
   const done = s.status === 'paid';
+  // amount that settles this installment (lists pass a running total that includes earlier unpaid ones)
+  const settle = payAmount ?? s.amount - paid;
   return (
     <Card onPress={() => router.push({ pathname: '/invoice/[id]', params: { id: s.invoiceId } })} label={`Installment for ${s.clientName}`}>
       <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -124,8 +126,8 @@ export function InstallmentItem({ item: s, payAmount }: { item: InstallmentRow; 
           <InstallmentBadge status={s.status} />
         </View>
       </Row>
-      {!done && payAmount !== undefined && payAmount > 0 && can('payments.record') && (
-        <MarkPaidButton invoiceId={s.invoiceId} amount={payAmount} precision={s.currencyPrecision} />
+      {!done && settle > 0 && can('payments.record') && (
+        <MarkPaidButton invoiceId={s.invoiceId} amount={settle} precision={s.currencyPrecision} />
       )}
     </Card>
   );

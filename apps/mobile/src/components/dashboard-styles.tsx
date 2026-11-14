@@ -6,7 +6,7 @@ import { Animated, Pressable, Text, View } from 'react-native';
 import { useAuth, useTheme } from '@/lib/app-context';
 import { PAYMENT_METHOD_LABELS, type DashboardStyle, type DashboardSummary, type Invoice } from '@/lib/shared';
 import { AreaLine, Bars, Donut, monthLabel } from './charts';
-import { InstallmentItem, InvoiceRow, PaymentRow } from './rows';
+import { InstallmentItem, InvoiceRow, PaymentRow, settleAmounts } from './rows';
 import { Badge, Card, CountUp, FadeIn, Row, Section, Txt, fd, fm, usePressScale, type IconName } from './ui';
 
 // ---------------------------------------------------------------- palettes
@@ -194,9 +194,10 @@ function CommonSections({ d, pending, accent }: { d: DashboardSummary; pending: 
       )}
       {d.upcomingInstallments.length > 0 && (
         <Section title="Upcoming installments" action={<Txt v="label" color={accent} onPress={() => router.push('/installments')}>See all</Txt>}>
-          {d.upcomingInstallments.map((s) => (
-            <InstallmentItem key={s.id} item={s} />
-          ))}
+          {(() => {
+            const settle = settleAmounts(d.upcomingInstallments);
+            return d.upcomingInstallments.map((s) => <InstallmentItem key={s.id} item={s} payAmount={s.id ? settle.get(s.id) : undefined} />);
+          })()}
         </Section>
       )}
     </>
