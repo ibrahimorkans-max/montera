@@ -15,14 +15,14 @@ export default function RecordPayment() {
   const t = useTheme();
   const toast = useToast();
   const { can } = useAuth();
-  const params = useLocalSearchParams<{ invoiceId?: string; clientId?: string }>();
+  const params = useLocalSearchParams<{ invoiceId?: string; clientId?: string; amount?: string }>();
   const requestId = useRef(`pay-${newKey()}`).current;
 
   const [clientId, setClientId] = useState(params.clientId ?? '');
   const [mode, setMode] = useState<Mode>('one');
   const [invoiceId, setInvoiceId] = useState(params.invoiceId ?? '');
   const [businessId, setBusinessId] = useState('');
-  const [amount, setAmount] = useState('');
+  const [amount, setAmount] = useState(params.amount ?? '');
   const [date, setDate] = useState(todayStr());
   const [method, setMethod] = useState<PaymentMethod>('cash');
   const [accountId, setAccountId] = useState('');

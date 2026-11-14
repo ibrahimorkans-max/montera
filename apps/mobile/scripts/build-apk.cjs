@@ -61,7 +61,10 @@ fs.writeFileSync(gradleFile, gradle);
 
 // 4. Phones only (skip x86 emulator code: smaller APK, faster build)
 const gp = path.join(root, 'android/gradle.properties');
-fs.writeFileSync(gp, fs.readFileSync(gp, 'utf8').replace(/^reactNativeArchitectures=.*$/m, 'reactNativeArchitectures=armeabi-v7a,arm64-v8a'));
+let props2 = fs.readFileSync(gp, 'utf8').replace(/^reactNativeArchitectures=.*$/m, 'reactNativeArchitectures=armeabi-v7a,arm64-v8a');
+// fewer parallel native compiles: keeps memory use low enough for an 8 GB machine / WSL
+if (!/^org\.gradle\.workers\.max=/m.test(props2)) props2 = `${props2.replace(/\n*$/, '\n')}org.gradle.workers.max=2\n`;
+fs.writeFileSync(gp, props2);
 
 // 5. Build
 console.log('==> Building the release APK (first build takes 10-30 minutes)');

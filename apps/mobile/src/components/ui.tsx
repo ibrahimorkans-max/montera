@@ -1,13 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ComponentProps, type ComponentRef, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Animated,
   Easing,
   FlatList,
-  KeyboardAvoidingView,
+  Keyboard,
   Modal,
   Platform,
   Pressable,
@@ -109,28 +109,93 @@ export function Screen({
 }) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
+  const kb = useKeyboardScroll();
   const body = scroll ? (
-    <ScrollView
-      key={scrollKey}
-      style={{ flex: 1 }}
-      keyboardShouldPersistTaps="handled"
-      contentContainerStyle={[styles.content, { paddingBottom: padBottom }]}
-      refreshControl={onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.primary} /> : undefined}>
-      {children}
-    </ScrollView>
+    <View ref={kb.boxRef} style={{ flex: 1 }}>
+      <ScrollView
+        key={scrollKey}
+        ref={kb.scrollRef}
+        onScroll={kb.onScroll}
+        scrollEventThrottle={16}
+        style={{ flex: 1 }}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={[styles.content, { paddingBottom: padBottom }]}
+        refreshControl={onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.primary} /> : undefined}>
+        {children}
+      </ScrollView>
+    </View>
   ) : (
     <View style={{ flex: 1 }}>{children}</View>
   );
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: t.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
-      {body}
-      {footer && (
-        <View style={[styles.footer, { backgroundColor: t.card, borderTopColor: t.border, paddingBottom: Math.max(insets.bottom, 12) }]}>
-          <View style={styles.footerInner}>{footer}</View>
-        </View>
-      )}
-    </KeyboardAvoidingView>
+    <RevealContext.Provider value={kb.reveal}>
+      <View ref={kb.containerRef} style={{ flex: 1, backgroundColor: t.bg, paddingBottom: kb.overlap }}>
+        {body}
+        {footer && (
+          <View style={[styles.footer, { backgroundColor: t.card, borderTopColor: t.border, paddingBottom: kb.overlap ? 10 : Math.max(insets.bottom, 12) }]}>
+            <View style={styles.footerInner}>{footer}</View>
+          </View>
+        )}
+      </View>
+    </RevealContext.Provider>
   );
+}
+
+/** Lets a focused field ask the screen around it to scroll it above the keyboard. */
+const RevealContext = createContext<() => void>(() => {});
+
+/**
+ * Keeps forms usable while the on-screen keyboard is open: `overlap` is how much of the container the
+ * keyboard covers (used as bottom padding, so the scroll area ends at the keyboard), and `reveal` scrolls
+ * the focused input into the visible part. Works the same on Android (edge-to-edge) and iOS.
+ */
+function useKeyboardScroll() {
+  const containerRef = useRef<ComponentRef<typeof View>>(null);
+  const boxRef = useRef<ComponentRef<typeof View>>(null);
+  const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
+  const scrollY = useRef(0);
+  const [overlap, setOverlap] = useState(0);
+
+  const reveal = useCallback(() => {
+    if (Platform.OS === 'web') return;
+    setTimeout(() => {
+      const input = TextInput.State.currentlyFocusedInput?.() as unknown as ComponentRef<typeof View> | null;
+      const box = boxRef.current;
+      if (!input?.measureInWindow || !box) return;
+      box.measureInWindow((_bx, by, _bw, bh) =>
+        input.measureInWindow((_ix, iy, _iw, ih) => {
+          const top = by + 12;
+          const bottom = by + bh - 28;
+          const shift = iy + ih > bottom ? iy + ih - bottom : iy < top ? iy - top : 0;
+          if (shift) scrollRef.current?.scrollTo({ y: Math.max(0, scrollY.current + shift), animated: true });
+        }),
+      );
+    }, 80);
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const ios = Platform.OS === 'ios';
+    const show = Keyboard.addListener(ios ? 'keyboardWillShow' : 'keyboardDidShow', (e) => {
+      const kbTop = e.endCoordinates.screenY;
+      containerRef.current?.measureInWindow((_x, y, _w, h) => {
+        const covered = Math.max(0, Math.min(e.endCoordinates.height, Math.round(y + h - kbTop)));
+        setOverlap(covered);
+        reveal();
+      });
+    });
+    const hide = Keyboard.addListener(ios ? 'keyboardWillHide' : 'keyboardDidHide', () => setOverlap(0));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, [reveal]);
+
+  const onScroll = useCallback((e: { nativeEvent: { contentOffset: { y: number } } }) => {
+    scrollY.current = e.nativeEvent.contentOffset.y;
+  }, []);
+
+  return { containerRef, boxRef, scrollRef, overlap, reveal, onScroll };
 }
 
 export function Card({ children, style, onPress, label }: { children: ReactNode; style?: StyleProp<ViewStyle>; onPress?: () => void; label?: string }) {
@@ -348,6 +413,7 @@ export function Field({
   ...rest
 }: TextInputProps & { label: string; error?: string; hint?: string; money?: boolean; style?: StyleProp<ViewStyle>; right?: ReactNode }) {
   const t = useTheme();
+  const reveal = useContext(RevealContext);
   const [focus, setFocus] = useState(false);
   return (
     <View style={[{ gap: 5, minWidth: 0 }, style]}>
@@ -362,6 +428,7 @@ export function Field({
           {...rest}
           onFocus={(e) => {
             setFocus(true);
+            reveal();
             rest.onFocus?.(e);
           }}
           onBlur={(e) => {
@@ -385,19 +452,44 @@ export function Field({
   );
 }
 
+/** Date input that opens a calendar. Value is YYYY-MM-DD ('' when empty). */
 export function DateField({ label, value, onChange, quick, error }: { label: string; value: string; onChange: (v: string) => void; quick?: { label: string; value: string }[]; error?: string }) {
   const t = useTheme();
+  const [open, setOpen] = useState(false);
+  const shown = isDate(value) ? fd(value) : value;
   return (
     <View style={{ gap: 6 }}>
-      <Field
-        label={label}
+      <View style={{ gap: 5 }}>
+        <Txt v="label">{label}</Txt>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${label}: ${shown || 'not set'}. Opens a calendar`}
+          onPress={() => {
+            Keyboard.dismiss();
+            setOpen(true);
+          }}
+          style={[styles.input, styles.selectBox, { backgroundColor: t.input, borderColor: error ? t.danger : t.border }]}>
+          <Ionicons name="calendar-outline" size={19} color={t.primary} />
+          <Text style={{ color: shown ? t.text : t.sub, fontSize: 16, flex: 1 }} numberOfLines={1}>
+            {shown || 'Choose date'}
+          </Text>
+          <Ionicons name="chevron-down" size={18} color={t.sub} />
+        </Pressable>
+        {!!error && (
+          <Txt v="small" color={t.danger}>
+            {error}
+          </Txt>
+        )}
+      </View>
+      <CalendarPicker
+        visible={open}
+        title={label}
         value={value}
-        onChangeText={onChange}
-        placeholder="YYYY-MM-DD"
-        keyboardType="numbers-and-punctuation"
-        maxLength={10}
-        error={error ?? (value && !isDate(value) ? 'Use the format YYYY-MM-DD' : undefined)}
-        hint={isDate(value) ? fd(value) : undefined}
+        onClose={() => setOpen(false)}
+        onPick={(v) => {
+          onChange(v);
+          setOpen(false);
+        }}
       />
       {quick && (
         <Row style={{ flexWrap: 'wrap' }}>
@@ -409,6 +501,94 @@ export function DateField({ label, value, onChange, quick, error }: { label: str
         </Row>
       )}
     </View>
+  );
+}
+
+const WEEKDAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+const FULL_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+/** Month calendar in a dialog. Calls onPick with YYYY-MM-DD. */
+export function CalendarPicker({ visible, title, value, onPick, onClose }: { visible: boolean; title: string; value: string; onPick: (v: string) => void; onClose: () => void }) {
+  const t = useTheme();
+  const today = todayStr();
+  const start = isDate(value) ? value : today;
+  const [ym, setYm] = useState({ y: Number(start.slice(0, 4)), m: Number(start.slice(5, 7)) - 1 });
+  useEffect(() => {
+    if (visible) setYm({ y: Number(start.slice(0, 4)), m: Number(start.slice(5, 7)) - 1 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
+  const move = (months: number) =>
+    setYm(({ y, m }) => {
+      const n = y * 12 + m + months;
+      return { y: Math.floor(n / 12), m: ((n % 12) + 12) % 12 };
+    });
+  const first = (new Date(Date.UTC(ym.y, ym.m, 1)).getUTCDay() + 6) % 7; // Monday first
+  const days = new Date(Date.UTC(ym.y, ym.m + 1, 0)).getUTCDate();
+  const cells: (number | null)[] = [...Array<null>(first).fill(null), ...Array.from({ length: days }, (_, i) => i + 1)];
+  while (cells.length % 7) cells.push(null);
+  const iso = (d: number) => `${ym.y}-${pad2(ym.m + 1)}-${pad2(d)}`;
+
+  const nav = (icon: IconName, label: string, by: number) => (
+    <Pressable accessibilityRole="button" accessibilityLabel={label} hitSlop={4} onPress={() => move(by)} style={({ pressed }) => [styles.calNav, { backgroundColor: t.neutralSoft, opacity: pressed ? 0.6 : 1 }]}>
+      <Ionicons name={icon} size={18} color={t.text} />
+    </Pressable>
+  );
+
+  return (
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
+      <View style={styles.calWrap}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close calendar" />
+        <View style={[styles.calCard, { backgroundColor: t.card, borderColor: t.border }]}>
+          <Row style={{ justifyContent: 'space-between' }}>
+            <Txt v="label">{title}</Txt>
+            <IconBtn icon="close" label="Close" onPress={onClose} />
+          </Row>
+          <Row style={{ justifyContent: 'space-between' }} gap={4}>
+            {nav('play-back-outline', 'Previous year', -12)}
+            {nav('chevron-back', 'Previous month', -1)}
+            <Txt v="h" style={{ flex: 1, textAlign: 'center' }} accessibilityRole="header">
+              {FULL_MONTHS[ym.m]} {ym.y}
+            </Txt>
+            {nav('chevron-forward', 'Next month', 1)}
+            {nav('play-forward-outline', 'Next year', 12)}
+          </Row>
+          <View style={styles.calGrid}>
+            {WEEKDAYS.map((w) => (
+              <View key={w} style={styles.calCell}>
+                <Txt v="small" style={{ fontWeight: '700' }}>
+                  {w}
+                </Txt>
+              </View>
+            ))}
+            {cells.map((d, n) => {
+              if (!d) return <View key={`e${n}`} style={styles.calCell} />;
+              const v = iso(d);
+              const on = v === value;
+              const isToday = v === today;
+              return (
+                <Pressable
+                  key={v}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: on }}
+                  accessibilityLabel={fd(v)}
+                  onPress={() => onPick(v)}
+                  style={({ pressed }) => [styles.calCell, { opacity: pressed ? 0.6 : 1 }]}>
+                  <View style={[styles.calDay, on ? { backgroundColor: t.primary } : isToday ? { borderWidth: 1.5, borderColor: t.primary } : null]}>
+                    <Text style={{ color: on ? t.onPrimary : t.text, fontSize: 15, fontWeight: on || isToday ? '700' : '400' }}>{d}</Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Row style={{ justifyContent: 'space-between' }}>
+            <Btn small kind="secondary" icon="today-outline" title="Today" onPress={() => onPick(today)} />
+            <Btn small kind="ghost" title="Cancel" onPress={onClose} />
+          </Row>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -541,21 +721,34 @@ export function Select<T>({
 export function Sheet({ visible, title, onClose, children }: { visible: boolean; title: string; onClose: () => void; children: ReactNode }) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
+  const kb = useKeyboardScroll();
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close" />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.sheet, { backgroundColor: t.bg, paddingBottom: Math.max(insets.bottom, 12) }]}>
-        <Row style={{ justifyContent: 'space-between' }}>
-          <Txt v="h">{title}</Txt>
-          <IconBtn icon="close" label="Close" onPress={onClose} />
-        </Row>
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 12, paddingBottom: 8 }}>
-          {children}
-        </ScrollView>
-      </KeyboardAvoidingView>
+      <RevealContext.Provider value={kb.reveal}>
+        <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close" />
+        <View ref={kb.containerRef} style={[styles.sheet, { backgroundColor: t.bg, paddingBottom: kb.overlap ? kb.overlap + 8 : Math.max(insets.bottom, 12) }]}>
+          <Row style={{ justifyContent: 'space-between' }}>
+            <Txt v="h">{title}</Txt>
+            <IconBtn icon="close" label="Close" onPress={onClose} />
+          </Row>
+          <View ref={kb.boxRef} style={{ flexShrink: 1 }}>
+            <ScrollView ref={kb.scrollRef} onScroll={kb.onScroll} scrollEventThrottle={16} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 12, paddingBottom: 8 }}>
+              {children}
+            </ScrollView>
+          </View>
+        </View>
+      </RevealContext.Provider>
     </Modal>
   );
 }
+
+const INSTALLMENT_LABELS: Record<string, string> = { paid: 'Paid', partial: 'Partly paid', pending: 'Unpaid', overdue: 'Overdue · unpaid' };
+/** Paid / Unpaid badge for an installment. */
+export function InstallmentBadge({ status }: { status?: string }) {
+  const s = status ?? 'pending';
+  return <Badge status={s} label={INSTALLMENT_LABELS[s] ?? s} />;
+}
+export const installmentLabel = (s?: string) => INSTALLMENT_LABELS[s ?? 'pending'] ?? s ?? '';
 
 // ---------------------------------------------------------------- status
 
@@ -678,4 +871,10 @@ export const styles = StyleSheet.create({
   badge: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8, alignSelf: 'flex-start' },
   track: { height: 10, borderRadius: 6, overflow: 'hidden' },
   notice: { padding: 12, borderRadius: 12 },
+  calWrap: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center', padding: 16 },
+  calCard: { width: '100%', maxWidth: 380, borderRadius: 20, padding: 16, gap: 12, borderWidth: StyleSheet.hairlineWidth },
+  calNav: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  calGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  calCell: { width: `${100 / 7}%`, height: 44, alignItems: 'center', justifyContent: 'center' },
+  calDay: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
 });

@@ -153,7 +153,7 @@ function parts(d: InvoiceDoc) {
     .map((p) => `<tr><td>${fd(p.date)}</td><td>${esc(p.number)}</td><td>${PAYMENT_METHOD_LABELS[p.method]}</td><td class="r">${m(p.allocations.find((x) => x.invoiceId === i.id)?.amount ?? 0)}</td></tr>`)
     .join('');
   const schedule = i.installments
-    .map((s, n) => `<tr><td>${n + 1}</td><td>${fd(s.dueDate)}</td><td>${s.status === 'paid' ? 'Paid' : s.status === 'partial' ? `Part paid ${m(s.paid ?? 0)}` : s.status === 'overdue' ? 'Overdue' : 'Pending'}</td><td class="r">${m(s.amount)}</td></tr>`)
+    .map((s, n) => `<tr><td>${n + 1}</td><td>${fd(s.dueDate)}</td><td>${s.status === 'paid' ? 'Paid' : s.status === 'partial' ? `Part paid ${m(s.paid ?? 0)}` : s.status === 'overdue' ? 'Overdue (unpaid)' : 'Unpaid'}</td><td class="r">${m(s.amount)}</td></tr>`)
     .join('');
   const extras = `${schedule ? `<div class="extra"><div class="label">Installment schedule</div><table><tr><th>#</th><th>Due</th><th>Status</th><th class="r">Amount</th></tr>${schedule}</table></div>` : ''}
     ${paymentRows ? `<div class="extra"><div class="label">Payments received</div><table><tr><th>Date</th><th>Receipt</th><th>Method</th><th class="r">Amount</th></tr>${paymentRows}</table></div>` : ''}`;

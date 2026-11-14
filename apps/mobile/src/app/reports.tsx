@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Easing, ScrollView, View } from 'react-native';
 import { DocumentViewer } from '@/components/doc-viewer';
-import { Badge, Btn, Card, Chips, CountUp, DateField, Empty, FadeIn, KV, Loader, Row, Screen, Select, Txt, addDays, fd, fm, isDate, todayStr } from '@/components/ui';
+import { Badge, Btn, Card, Chips, CountUp, DateField, Empty, FadeIn, InstallmentBadge, KV, Loader, Row, Screen, Select, Txt, addDays, fd, fm, isDate, todayStr } from '@/components/ui';
 import { qs, useApi } from '@/lib/api';
 import { useAuth, useTheme, useToast } from '@/lib/app-context';
 import { downloadFromApi } from '@/lib/download';
@@ -392,7 +392,7 @@ export default function Reports() {
                           </View>
                           <View style={{ alignItems: 'flex-end', gap: 4 }}>
                             <Txt style={{ fontWeight: '700' }}>{money(x.amount)}</Txt>
-                            <Badge status={x.status} />
+                            <InstallmentBadge status={x.status} />
                           </View>
                         </Row>
                       </Card>

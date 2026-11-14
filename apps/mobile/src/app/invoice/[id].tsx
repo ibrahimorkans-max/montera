@@ -3,8 +3,8 @@ import { useCallback, useState } from 'react';
 import { View } from 'react-native';
 import { DocumentViewer } from '@/components/doc-viewer';
 import { usePending } from '@/components/sync-ui';
-import { PaymentRow } from '@/components/rows';
-import { Badge, Btn, Card, DateField, Field, IconBtn, KV, Loader, Notice, Progress, Row, Screen, Section, Sheet, Txt, confirm, fd, fm, isDate, statusLabel } from '@/components/ui';
+import { MarkPaidButton, PaymentRow } from '@/components/rows';
+import { Badge, Btn, Card, DateField, Field, IconBtn, InstallmentBadge, KV, Loader, Notice, Progress, Row, Screen, Section, Sheet, Txt, confirm, fd, fm, isDate, statusLabel } from '@/components/ui';
 import { api, useApi } from '@/lib/api';
 import { useAuth, useTheme, useToast } from '@/lib/app-context';
 import { newKey } from '@/lib/invoice-draft';
@@ -175,22 +175,42 @@ export default function InvoiceDetail() {
                   ) : undefined
                 }>
                 {i.installments.length === 0 && <Txt v="sub">No installment schedule for this invoice.</Txt>}
-                {i.installments.map((s, n) => (
-                  <Card key={s.id ?? n}>
-                    <Row style={{ justifyContent: 'space-between' }}>
-                      <View>
-                        <Txt style={{ fontWeight: '600' }}>
-                          {n + 1}. {fd(s.dueDate)}
-                        </Txt>
-                        {(s.paid ?? 0) > 0 && s.status !== 'paid' && <Txt v="small">{m(s.paid ?? 0)} received</Txt>}
-                      </View>
-                      <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                        <Txt style={{ fontWeight: '700' }}>{m(s.amount)}</Txt>
-                        <Badge status={s.status ?? 'pending'} />
-                      </View>
-                    </Row>
-                  </Card>
-                ))}
+                {i.installments.length > 0 && (
+                  <Row gap={14} style={{ flexWrap: 'wrap' }}>
+                    <Txt v="small" color={t.success}>
+                      Paid {i.installments.filter((s) => s.status === 'paid').length} of {i.installments.length}
+                    </Txt>
+                    <Txt v="small" color={i.installments.some((s) => s.status === 'overdue') ? t.danger : undefined}>
+                      Unpaid {i.installments.filter((s) => s.status !== 'paid').length}
+                    </Txt>
+                  </Row>
+                )}
+                {(() => {
+                  let owed = 0; // running amount that settles each installment, earlier ones included
+                  return i.installments.map((s, n) => {
+                    const done = s.status === 'paid';
+                    if (!done) owed += s.amount - (s.paid ?? 0);
+                    return (
+                      <Card key={s.id ?? n}>
+                        <Row style={{ justifyContent: 'space-between' }}>
+                          <View style={{ flex: 1, gap: 2 }}>
+                            <Txt style={{ fontWeight: '600' }}>
+                              Installment {n + 1} · {fd(s.dueDate)}
+                            </Txt>
+                            <Txt v="small" color={done ? t.success : undefined}>
+                              {done ? 'Fully paid' : (s.paid ?? 0) > 0 ? `${m(s.paid ?? 0)} received · ${m(s.amount - (s.paid ?? 0))} left` : 'Nothing received yet'}
+                            </Txt>
+                          </View>
+                          <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                            <Txt style={{ fontWeight: '700' }}>{m(s.amount)}</Txt>
+                            <InstallmentBadge status={s.status} />
+                          </View>
+                        </Row>
+                        {!done && i.status === 'final' && can('payments.record') && <MarkPaidButton invoiceId={i.id} amount={Math.min(owed, i.balance)} precision={i.currencyPrecision} />}
+                      </Card>
+                    );
+                  });
+                })()}
               </Section>
             )}
 

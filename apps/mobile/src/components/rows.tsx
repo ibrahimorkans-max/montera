@@ -2,10 +2,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
-import { useTheme } from '@/lib/app-context';
-import { PAYMENT_METHOD_LABELS, type Client, type InstallmentRow, type Invoice, type Payment } from '@/lib/shared';
+import { useAuth, useTheme } from '@/lib/app-context';
+import { PAYMENT_METHOD_LABELS, moneyToInput, type Client, type InstallmentRow, type Invoice, type Payment } from '@/lib/shared';
 import { PendingTag } from './sync-ui';
-import { Badge, Card, Row, Txt, fd, fm, type IconName } from './ui';
+import { Badge, Btn, Card, InstallmentBadge, Row, Txt, fd, fm, type IconName } from './ui';
 
 export function useDebounced<T>(value: T, ms = 300): T {
   const [v, setV] = useState(value);
@@ -93,7 +93,16 @@ export function ClientRow({ client: c }: { client: Client }) {
   );
 }
 
-export function InstallmentItem({ item: s }: { item: InstallmentRow }) {
+/**
+ * One installment with its Paid / Unpaid status. When `payAmount` is given, a "Mark paid" button opens
+ * Record Payment for that amount (payments settle the earliest installments first, so it covers any
+ * earlier unpaid ones on the same invoice too).
+ */
+export function InstallmentItem({ item: s, payAmount }: { item: InstallmentRow; payAmount?: number }) {
+  const t = useTheme();
+  const { can } = useAuth();
+  const paid = s.paid ?? 0;
+  const done = s.status === 'paid';
   return (
     <Card onPress={() => router.push({ pathname: '/invoice/[id]', params: { id: s.invoiceId } })} label={`Installment for ${s.clientName}`}>
       <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -104,14 +113,48 @@ export function InstallmentItem({ item: s }: { item: InstallmentRow }) {
           <Txt v="small">
             {s.invoiceNumber} · due {fd(s.dueDate)}
           </Txt>
+          <Txt v="small" color={done ? t.success : undefined}>
+            {done ? `Paid ${fm(s.amount, s)}` : paid > 0 ? `Paid ${fm(paid, s)} of ${fm(s.amount, s)}` : `Installment ${fm(s.amount, s)}`}
+          </Txt>
         </View>
         <View style={{ alignItems: 'flex-end', gap: 4 }}>
-          <Txt style={{ fontWeight: '700' }}>{fm(s.amount - (s.paid ?? 0), s)}</Txt>
-          <Badge status={s.status ?? 'pending'} />
+          <Txt style={{ fontWeight: '700' }} color={done ? t.success : undefined}>
+            {done ? fm(s.amount, s) : fm(s.amount - paid, s)}
+          </Txt>
+          <InstallmentBadge status={s.status} />
         </View>
       </Row>
+      {!done && payAmount !== undefined && payAmount > 0 && can('payments.record') && (
+        <MarkPaidButton invoiceId={s.invoiceId} amount={payAmount} precision={s.currencyPrecision} />
+      )}
     </Card>
   );
+}
+
+/** Opens Record Payment pre-filled to settle an installment. */
+export function MarkPaidButton({ invoiceId, amount, precision }: { invoiceId: string; amount: number; precision?: number }) {
+  return (
+    <Btn
+      small
+      kind="secondary"
+      icon="checkmark-done-outline"
+      title="Mark paid"
+      onPress={() => router.push({ pathname: '/payment/new', params: { invoiceId, amount: moneyToInput(amount, precision ?? 2) } })}
+    />
+  );
+}
+
+/** For each unpaid installment, the amount that settles it (earlier unpaid ones on the same invoice included). */
+export function settleAmounts(rows: { id?: string; invoiceId: string; dueDate: string; amount: number; paid?: number; status?: string }[]) {
+  const out = new Map<string, number>();
+  const running = new Map<string, number>();
+  for (const s of [...rows].sort((a, b) => a.dueDate.localeCompare(b.dueDate))) {
+    if (s.status === 'paid') continue;
+    const sum = (running.get(s.invoiceId) ?? 0) + s.amount - (s.paid ?? 0);
+    running.set(s.invoiceId, sum);
+    if (s.id) out.set(s.id, sum);
+  }
+  return out;
 }
 
 export function MenuRow({ icon, title, sub, onPress, disabled }: { icon: IconName; title: string; sub?: string; onPress?: () => void; disabled?: boolean }) {

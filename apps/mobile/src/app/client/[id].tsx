@@ -3,7 +3,7 @@ import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Linking, View } from 'react-native';
 import { DocumentViewer } from '@/components/doc-viewer';
-import { InstallmentItem, InvoiceRow, PaymentRow } from '@/components/rows';
+import { InstallmentItem, InvoiceRow, PaymentRow, settleAmounts } from '@/components/rows';
 import { Badge, Btn, Card, Chips, IconBtn, KV, Loader, Row, Screen, Txt, fd, fm, Sheet, Field, DateField } from '@/components/ui';
 import { api, useApi } from '@/lib/api';
 import { AccountSelect } from '@/components/money';
@@ -38,6 +38,7 @@ export default function ClientProfile() {
   const whatsapp = c ? digits(c.whatsapp || c.phone).replace(/^\+/, '') : '';
 
   const clientInstallments = (installments.data ?? []).filter((s) => s.clientId === id);
+  const settle = settleAmounts(clientInstallments);
 
   return (
     <Screen onRefresh={reload} refreshing={refreshing}>
@@ -167,7 +168,7 @@ export default function ClientProfile() {
             {tab === 'invoices' && (l.invoices.length === 0 ? <Txt v="sub">No invoices for this client yet.</Txt> : l.invoices.map((i) => <InvoiceRow key={i.id} invoice={i} />))}
             {tab === 'payments' && (l.payments.length === 0 ? <Txt v="sub">No payments from this client yet.</Txt> : l.payments.map((p) => <PaymentRow key={p.id} payment={p} />))}
             {tab === 'installments' &&
-              (clientInstallments.length === 0 ? <Txt v="sub">No installment schedules for this client.</Txt> : clientInstallments.map((s) => <InstallmentItem key={s.id} item={s} />))}
+              (clientInstallments.length === 0 ? <Txt v="sub">No installment schedules for this client.</Txt> : clientInstallments.map((s) => <InstallmentItem key={s.id} item={s} payAmount={s.id ? settle.get(s.id) : undefined} />))}
 
             {tab === 'statement' && (
               <>
