@@ -37,15 +37,18 @@ if (!fs.existsSync(keystore)) {
 }
 const props = JSON.parse(fs.readFileSync(propsFile, 'utf8'));
 
-// 2. Native project from app.json
-console.log('==> Generating the Android project');
-run('npx expo prebuild --platform android --clean --no-install');
+// 2. Native project from app.json. Kept between builds so Gradle reuses compiled native code
+//    (minutes instead of half an hour); CLEAN=1 regenerates it from scratch.
+const fresh = process.env.CLEAN === '1' || !fs.existsSync(path.join(root, 'android/app/build.gradle'));
+console.log(fresh ? '==> Generating the Android project' : '==> Updating the Android project (CLEAN=1 for a full rebuild)');
+run(`npx expo prebuild --platform android --no-install${fresh ? ' --clean' : ''}`);
 
 // 3. Use the release key instead of the debug key
 const gradleFile = path.join(root, 'android/app/build.gradle');
 let gradle = fs.readFileSync(gradleFile, 'utf8');
 const ks = keystore.replace(/\\/g, '/');
-gradle = gradle.replace(
+// an updated (not regenerated) project already has the release key
+if (!gradle.includes(`storeFile file('${ks}')`)) gradle = gradle.replace(
   /signingConfigs\s*\{/,
   `signingConfigs {
         release {

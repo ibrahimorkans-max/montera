@@ -65,7 +65,8 @@ interface AuthState {
   ready: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   register: (input: { businessName: string; name: string; email: string; password: string }) => Promise<void>;
-  signOut: () => Promise<void>;
+  /** force: skip the unsynced-changes warning (used after the account was deleted) */
+  signOut: (force?: boolean) => Promise<void>;
   can: (p: Permission) => boolean;
 }
 const AuthCtx = createContext<AuthState>(null as any);
@@ -158,9 +159,9 @@ export function AppProviders({ children }: { children: ReactNode }) {
         await startOffline(s.user);
         setUser(s.user);
       },
-      async signOut() {
+      async signOut(force = false) {
         const waiting = engine.state.pending + engine.state.failed;
-        if (waiting > 0) {
+        if (waiting > 0 && !force) {
           const msg = `${waiting} change${waiting === 1 ? ' has' : 's have'} not reached the server yet and will be lost if you sign out now. Connect to the internet and let them sync first.`;
           const ok = RNPlatform.OS === 'web' ? globalThis.confirm(`Sign out anyway?\n\n${msg}`) : await new Promise<boolean>((r) => Alert.alert('Sign out anyway?', msg, [{ text: 'Cancel', style: 'cancel', onPress: () => r(false) }, { text: 'Sign out', style: 'destructive', onPress: () => r(true) }]));
           if (!ok) return;

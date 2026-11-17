@@ -96,6 +96,7 @@ export default function Finance() {
   const summary = useApi<FinanceSummary>(`/finance/summary${qs(dates)}`);
   const entries = useApi<FinanceEntry[]>(`/finance/entries${qs({ ...dates, type: filter, limit: 100 })}`);
   const accounts = useApi<MoneyAccount[]>('/accounts');
+  const usedCategories = useApi<{ income: string[]; expense: string[] }>('/finance/categories');
   const [transfer, setTransfer] = useState(false);
   const s = summary.data;
   const money = (v: number) => fm(v, s);
@@ -105,6 +106,7 @@ export default function Finance() {
     summary.reload();
     entries.reload();
     accounts.reload();
+    usedCategories.reload();
   };
 
   const open = (type: 'income' | 'expense') =>
@@ -149,7 +151,10 @@ export default function Finance() {
   }
 
   const peak = Math.max(1, ...(s?.monthly ?? []).flatMap((m) => [m.income, m.expense]));
-  const categories = form?.type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+  const used = form?.type === 'income' ? usedCategories.data?.income : usedCategories.data?.expense;
+  const defaults: readonly string[] = form?.type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+  // the built-in list, then every category typed in before (so a custom one only has to be typed once)
+  const categories = [...defaults, ...(used ?? []).filter((c) => !defaults.includes(c))];
 
   return (
     <Screen onRefresh={reload} refreshing={summary.refreshing}>
@@ -330,7 +335,7 @@ export default function Finance() {
             );
           })}
         </View>
-        <Field label="Or type your own category" value={form && !(categories as readonly string[]).includes(form.category) ? form.category : ''} onChangeText={(v) => set({ category: v })} placeholder="e.g. Equipment" />
+        <Field label="Or type your own category" value={form && !categories.includes(form.category) ? form.category : ''} onChangeText={(v) => set({ category: v })} placeholder="e.g. Equipment" />
         <DateField label="Date" value={form?.date ?? ''} onChange={(v) => set({ date: v })} quick={[{ label: 'Today', value: todayStr() }, { label: 'Yesterday', value: addDays(todayStr(), -1) }]} />
         <Field label={form?.type === 'income' ? 'Received from (optional)' : 'Paid to (optional)'} value={form?.party ?? ''} onChangeText={(v) => set({ party: v })} />
         <Txt v="label">Method</Txt>

@@ -5,7 +5,7 @@ import { Pressable, Switch, View } from 'react-native';
 import { DocumentViewer } from '@/components/doc-viewer';
 import { CurrencySelect } from '@/components/money';
 import { StepSlide, Stepper, type StepDef } from '@/components/stepper';
-import { Btn, Card, Chips, CountUp, DateField, Field, IconBtn, KV, Loading, Notice, Row, Screen, Section, Select, Sheet, Txt, addDays, addMonths, confirm, fd, fm, isDate, todayStr } from '@/components/ui';
+import { Btn, Card, Chips, CountUp, DateField, Field, IconBtn, InstallmentBadge, KV, Loading, Notice, Row, Screen, Section, Select, Sheet, Txt, addDays, addMonths, confirm, fd, fm, isDate, todayStr } from '@/components/ui';
 import { api, useApi } from '@/lib/api';
 import { useAuth, useTheme, useToast } from '@/lib/app-context';
 import {
@@ -21,7 +21,9 @@ import {
   draftTotals,
   emptyDraft,
   emptyLine,
+  depositAmount,
   initialPaymentAmount,
+  paidInstallmentsAmount,
   lineFromService,
   newKey,
   type InvoiceDraft,
@@ -120,7 +122,9 @@ export default function DocBuilder({ kind = 'invoice' }: { kind?: BuilderKind })
       const localCopy = await local.get<InvoiceDraft>(storageKey);
       if (!alive) return;
       if (localCopy && (localCopy.lines.length > 0 || localCopy.clientId)) {
-        setDraft(localCopy);
+        // a copy saved by an older app version may lack newer fields: fill them from a blank draft
+        const blank = emptyDraft();
+        setDraft({ ...blank, ...localCopy, schedule: { ...blank.schedule, ...localCopy.schedule } });
         setRestored(true);
         return;
       }
@@ -197,7 +201,11 @@ export default function DocBuilder({ kind = 'invoice' }: { kind?: BuilderKind })
   }
   const payNow = kind === 'invoice' && can('payments.record') ? initialPaymentAmount(draft, totals.total, precision) : 0;
   const scheduleSum = draft.installments.reduce((a, s) => a + (parseMoney(s.amount, precision) ?? 0), 0);
-  const remainingAfterPay = Math.max(0, totals.total - payNow);
+  // with installments, the schedule covers what is left after the down payment; installments switched
+  // to Paid are part of the schedule and are recorded as received together with it
+  const paidInstallments = kind === 'invoice' && can('payments.record') && draft.paymentMode === 'installments' ? paidInstallmentsAmount(draft, precision) : 0;
+  const deposit = draft.paymentMode === 'installments' ? (kind === 'invoice' && can('payments.record') ? depositAmount(draft, precision) : 0) : payNow;
+  const remainingAfterPay = Math.max(0, totals.total - deposit);
 
   // ------------------------------------------------------------ validation
 
@@ -232,6 +240,8 @@ export default function DocBuilder({ kind = 'invoice' }: { kind?: BuilderKind })
         if (draft.installments.length === 0) fail('payment', 'installments', 'Add at least one installment');
         else if (draft.installments.some((s) => !isDate(s.dueDate) || !((parseMoney(s.amount, precision) ?? 0) > 0))) fail('payment', 'installments', 'Every installment needs a date and an amount');
         else if (scheduleSum > remainingAfterPay) fail('payment', 'installments', `Installments add up to ${money(scheduleSum)}, more than the ${money(remainingAfterPay)} remaining`);
+        else if (paidInstallments > 0 && scheduleSum !== remainingAfterPay)
+          fail('payment', 'installments', `When some installments are already paid, the installments must add up to the full ${money(remainingAfterPay)} remaining (now ${money(scheduleSum)})`);
       }
     }
     if (kind === 'recurring' && reached('schedule')) {
@@ -655,10 +665,28 @@ export default function DocBuilder({ kind = 'invoice' }: { kind?: BuilderKind })
                   </View>
                   <Field style={{ flex: 1 }} label="Amount" money placeholder="0" value={s.amount} onChangeText={(v) => patch({ amount: v })} />
                 </Row>
+                {can('payments.record') && (
+                  <Row style={{ justifyContent: 'space-between' }}>
+                    <InstallmentBadge status={s.paid ? 'paid' : 'pending'} />
+                    <Row gap={8}>
+                      <Txt v="small">{s.paid ? 'Already paid' : 'Mark as paid'}</Txt>
+                      <Switch
+                        accessibilityLabel={`Installment ${i + 1} paid`}
+                        value={!!s.paid}
+                        onValueChange={(on) =>
+                          // money settles installments in order, so paid ones are always the earliest
+                          set({ installments: draft.installments.map((x, n) => ({ ...x, paid: on ? n <= i || !!x.paid : n < i && !!x.paid })) })
+                        }
+                      />
+                    </Row>
+                  </Row>
+                )}
               </Card>
             );
           })}
           {draft.installments.length > 0 && <KV k="Scheduled" v={`${money(scheduleSum)} of ${money(remainingAfterPay)}`} color={scheduleSum > remainingAfterPay ? t.danger : undefined} />}
+          {paidInstallments > 0 && <KV k={`Already paid (${draft.installments.filter((x) => x.paid).length} installment${draft.installments.filter((x) => x.paid).length === 1 ? '' : 's'})`} v={money(paidInstallments)} color={t.success} />}
+          {paidInstallments > 0 && <Txt v="small">This is recorded as a payment when the invoice is saved. Choose its method and date under Payment received.</Txt>}
         </Section>
       )}
     </>
@@ -797,7 +825,7 @@ export default function DocBuilder({ kind = 'invoice' }: { kind?: BuilderKind })
         <Card>
           <Txt v="label">Installments</Txt>
           {draft.installments.map((s, i) => (
-            <KV key={s.key} k={`${i + 1}. ${fd(s.dueDate)}`} v={money(parseMoney(s.amount, precision) ?? 0)} />
+            <KV key={s.key} k={`${i + 1}. ${fd(s.dueDate)}${s.paid && paidInstallments > 0 ? ' · Paid' : ''}`} v={money(parseMoney(s.amount, precision) ?? 0)} />
           ))}
         </Card>
       )}

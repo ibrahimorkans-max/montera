@@ -145,3 +145,12 @@ export function deleteEntry(db: Db, auth: AuthContext, id: string) {
   if (!r.changes) throw new HttpError(404, 'Entry not found.');
   db.audit(auth.tenantId, auth.userId, 'finance.delete', 'finance_entry', id);
 }
+
+/** Categories already used on typed-in entries, most recent first, so custom ones can be picked again. */
+export function usedCategories(db: Db, tenantId: string): { income: string[]; expense: string[] } {
+  const rows = db.all('select type, category, max(date || created_at) as last from finance_entry where tenant_id = ? group by type, category order by last desc', tenantId);
+  return {
+    income: rows.filter((r) => r.type === 'income').map((r) => r.category),
+    expense: rows.filter((r) => r.type === 'expense').map((r) => r.category),
+  };
+}

@@ -59,7 +59,8 @@ export interface InvoiceDraft {
   payMethod: PaymentMethod;
   payDate: string;
   payReference: string;
-  installments: { key: string; dueDate: string; amount: string }[];
+  /** paid: already received; recorded as part of the payment when the invoice is saved */
+  installments: { key: string; dueDate: string; amount: string; paid?: boolean }[];
   /** recurring schedules only */
   schedule: RecurringDraft;
   /** invoice/quotation currency; empty = the business currency */
@@ -219,7 +220,18 @@ export function draftTotals(d: InvoiceDraft, business: BusinessProfile | undefin
 export function initialPaymentAmount(d: InvoiceDraft, total: number, precision: number): number {
   if (d.paymentMode === 'unpaid') return 0;
   if (d.paymentMode === 'paid') return total;
+  return depositAmount(d, precision) + (d.paymentMode === 'installments' ? paidInstallmentsAmount(d, precision) : 0);
+}
+
+/** The amount typed as received now (for installments: the down payment before the schedule). */
+export function depositAmount(d: InvoiceDraft, precision: number): number {
+  if (d.paymentMode === 'unpaid' || d.paymentMode === 'paid') return 0;
   return Math.max(0, parseMoney(d.payAmount, precision) ?? 0);
+}
+
+/** Installments switched to Paid while creating the invoice. */
+export function paidInstallmentsAmount(d: InvoiceDraft, precision: number): number {
+  return d.installments.reduce((a, s) => a + (s.paid ? Math.max(0, parseMoney(s.amount, precision) ?? 0) : 0), 0);
 }
 
 export function draftToBody(d: InvoiceDraft, business: BusinessProfile | undefined, finalize: boolean) {
@@ -267,7 +279,10 @@ export function draftPreview(d: InvoiceDraft, business: BusinessProfile, client:
     clientName: client?.name ?? d.clientName,
     businessName: business.tradingName || business.legalName,
     lines: body.lines.map((l, n) => ({ ...l, lineTotal: totals.lines[n].net })),
-    installments: body.installments.map((s) => ({ ...s, paid: 0, status: 'pending' as const })),
+    installments: body.installments.map((s, n) => {
+      const done = d.paymentMode === 'installments' && canPay && !!d.installments.filter((x) => (parseMoney(x.amount, precision) ?? 0) > 0)[n]?.paid;
+      return { ...s, paid: done ? s.amount : 0, status: done ? ('paid' as const) : ('pending' as const) };
+    }),
     currency: d.currency || business.currency,
     currencyPrecision: precision,
     taxInclusive: business.taxInclusive,

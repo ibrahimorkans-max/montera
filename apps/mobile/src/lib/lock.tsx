@@ -214,7 +214,7 @@ function LockScreen({ config, onUnlock, onPasswordReset }: { config: LockConfig;
           )}
         </View>
       )}
-      <Pressable accessibilityRole="button" onPress={signOut} hitSlop={10}>
+      <Pressable accessibilityRole="button" onPress={() => signOut()} hitSlop={10}>
         <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14 }}>Sign out</Text>
       </Pressable>
     </LinearGradient>

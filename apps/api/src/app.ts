@@ -18,6 +18,7 @@ import {
 import { now, uid, type Db, type Row } from './db';
 import * as d from './domain';
 import * as acc from './accounts';
+import { deleteAccount, exportAllData } from './account';
 import { reportFileName, reportWorkbook } from './excel';
 import { MiniApp } from './mini';
 import { errorResponse } from './perm';
@@ -203,6 +204,33 @@ export function createApp(db: Db) {
     } catch (e) {
       next(e);
     }
+  });
+
+  // ------------------------------------------------------------ server-only: whole account (owner)
+
+  const ownerOnly = (req: Request) => {
+    if (req.auth.role !== 'owner') throw new HttpError(403, 'Only the account owner can do this.');
+  };
+  app.get('/account/export.xlsx', async (req, res, next) => {
+    try {
+      ownerOnly(req);
+      const buf = await exportAllData(db, T(req));
+      db.audit(T(req), req.auth.userId, 'account.export', 'tenant', T(req));
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="monetra-all-data-${now().slice(0, 10)}.xlsx"`);
+      res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+      res.send(buf);
+    } catch (e) {
+      next(e);
+    }
+  });
+  app.post('/account/delete', (req, res) => {
+    ownerOnly(req);
+    const body = z.object({ password: z.string().min(1, 'Enter your password'), confirm: z.literal('DELETE', { message: 'Type DELETE to confirm' }) }).parse(req.body);
+    const u = db.get('select * from app_user where id = ? and tenant_id = ?', req.auth.userId, T(req));
+    if (!u || !verifyPassword(body.password, u.password_hash)) throw new HttpError(422, 'Incorrect password.');
+    deleteAccount(db, T(req));
+    res.json({ ok: true });
   });
 
   // the same routes, run in-process, replay operations queued on phones

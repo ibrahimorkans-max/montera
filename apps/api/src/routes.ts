@@ -230,6 +230,7 @@ export function registerRoutes(app: AppLike, db: Db) {
     const s = (k: string) => (req.query[k] ? String(req.query[k]) : undefined);
     return { businessId: s('businessId'), from: s('from'), to: s('to'), type: s('type') };
   };
+  app.get('/finance/categories', need('reports.view'), (req: Req, res: Res) => res.json(fin.usedCategories(db, T(req))));
   app.get('/finance/summary', need('reports.view'), (req: Req, res: Res) => res.json(fin.summary(db, T(req), financeFilter(req))));
   app.get('/finance/entries', need('reports.view'), (req: Req, res: Res) => {
     const { limit, offset } = page(req);
