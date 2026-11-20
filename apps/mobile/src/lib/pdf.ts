@@ -12,6 +12,7 @@ import {
   type Invoice,
   type InvoiceTemplate,
   type Payment,
+  type Purchase,
   type Quotation,
   type ReportData,
 } from './shared';
@@ -406,6 +407,50 @@ export function receiptHtml(d: { payment: Payment; business: BusinessProfile; cl
     ${applied ? `<div class="extra"><div class="label">Applied to</div><table class="items"><tr><th>Invoice</th><th class="r">Invoice total</th><th class="r">This payment</th><th class="r">Balance now</th></tr>${applied}</table></div>` : ''}
     ${p.unallocated > 0 ? `<div class="extra"><b>${m(p.unallocated)}</b> is held as an advance on the client's account.</div>` : ''}
     ${simpleSig(b)}</div><div class="grow"></div><div class="muted" style="text-align:center;margin-top:14px">${b.invoiceFooter ? nl(b.invoiceFooter) : ''}</div></div>`,
+    simpleVars(b),
+  );
+}
+
+/** Slip for one purchase bill: what was bought, from whom, and what was paid. */
+export function purchaseSlipHtml(p: Purchase, b: BusinessProfile, paper: Paper = 'A5'): string {
+  const m = (v: number) => formatMoney(v, p.currency, p.currencyPrecision);
+  const rows = p.lines
+    .map((l, i) => `<tr><td>${i + 1}</td><td>${esc(l.name)}</td><td class="r">${qtyToString(l.qty)}${l.unit ? ' ' + esc(l.unit) : ''}</td><td class="r">${m(l.unitPrice)}</td><td class="r">${m(l.amount)}</td></tr>`)
+    .join('');
+  return shell(
+    `Purchase ${p.number}`,
+    paper,
+    SIMPLE_CSS,
+    `<div class="page">${simpleHead(b, 'PURCHASE SLIP', `<b>${esc(p.number)}</b> · ${fd(p.date)}${p.billNo ? `<br/>Supplier bill ${esc(p.billNo)}` : ''}`)}
+    <div class="in"><div class="two"><div><div class="label">Bought from</div><b style="font-size:1.15em">${esc(p.supplier)}</b></div>
+      <div class="r"><div class="label">Total paid</div><div class="amount">${m(p.total)}</div></div></div>
+    <div class="extra"><table class="items"><tr><th>#</th><th>Item</th><th class="r">Qty</th><th class="r">Price</th><th class="r">Amount</th></tr>${rows}
+      <tr><td></td><td colspan="3"><b>Total</b></td><td class="r"><b>${m(p.total)}</b></td></tr></table></div>
+    <table class="kv" style="margin-top:14px"><tr><td>Paid with</td><td class="r">${PAYMENT_METHOD_LABELS[p.method]}</td></tr>
+      ${p.accountName ? `<tr><td>Paid from</td><td class="r">${esc(p.accountName)}</td></tr>` : ''}<tr><td>Category</td><td class="r">${esc(p.category)}</td></tr>
+      ${p.notes ? `<tr><td>Notes</td><td class="r" style="white-space:normal">${nl(p.notes)}</td></tr>` : ''}</table>
+    ${simpleSig(b)}</div><div class="grow"></div><div class="muted" style="text-align:center;margin-top:14px">${b.invoiceFooter ? nl(b.invoiceFooter) : ''}</div></div>`,
+    simpleVars(b),
+  );
+}
+
+/** Every purchase bill in a period on one sheet, with a grand total. */
+export function purchasesListHtml(list: Purchase[], b: BusinessProfile, period: string, paper: Paper = 'A4'): string {
+  const cur = list[0] ?? { currency: b.currency, currencyPrecision: b.currencyPrecision };
+  const m = (v: number) => formatMoney(v, cur.currency, cur.currencyPrecision);
+  const total = list.reduce((a, p) => a + p.total, 0);
+  const rows = list
+    .map((p) => `<tr><td>${fd(p.date)}</td><td>${esc(p.number)}</td><td>${esc(p.supplier)}</td><td style="white-space:normal">${p.lines.map((l) => `${esc(l.name)} × ${qtyToString(l.qty)}${l.unit ? ' ' + esc(l.unit) : ''}`).join(', ')}</td><td class="r">${m(p.total)}</td></tr>`)
+    .join('');
+  return shell(
+    'Purchases',
+    paper,
+    SIMPLE_CSS,
+    `<div class="page">${simpleHead(b, 'PURCHASES', `${esc(period)}<br/>${list.length} bill${list.length === 1 ? '' : 's'}`)}
+    <div class="in"><div class="two"><div></div><div class="r"><div class="label">Total purchases</div><div class="amount">${m(total)}</div></div></div>
+    <div class="extra"><table class="items"><tr><th>Date</th><th>No.</th><th>Supplier</th><th>Items</th><th class="r">Amount</th></tr>${rows || '<tr><td colspan="5">No purchases in this period.</td></tr>'}
+      <tr><td colspan="4"><b>Total</b></td><td class="r"><b>${m(total)}</b></td></tr></table></div>
+    ${simpleSig(b)}</div><div class="grow"></div></div>`,
     simpleVars(b),
   );
 }

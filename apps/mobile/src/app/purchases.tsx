@@ -1,13 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Text, View } from 'react-native';
 import { Bars, monthLabel } from '@/components/charts';
+import { DocumentViewer } from '@/components/doc-viewer';
+import { purchasesListHtml, type Paper } from '@/lib/pdf';
 import { useDebounced } from '@/components/rows';
 import { Btn, Card, Chips, CountUp, Empty, FadeIn, Gradient, Loader, Row, Screen, SearchBar, Section, Txt, addDays, fd, fm, todayStr } from '@/components/ui';
 import { qs, useApi } from '@/lib/api';
 import { useAuth, useTheme } from '@/lib/app-context';
-import { qtyToString, type Purchase, type PurchaseSummary } from '@/lib/shared';
+import { qtyToString, type BusinessProfile, type Purchase, type PurchaseSummary } from '@/lib/shared';
+
+const RANGE_LABELS: Record<string, string> = { month: 'This month', '30d': 'Last 30 days', year: 'This year', all: 'All time' };
 
 type Range = 'month' | '30d' | 'year' | 'all';
 function rangeDates(r: Range): { from?: string; to?: string } {
@@ -83,6 +87,11 @@ export default function Purchases() {
   const list = useApi<Purchase[]>(`/purchases${qs({ ...dates, q: query, limit: 100 })}`);
   const s = summary.data;
   const money = (v: number) => fm(v, s);
+  const businesses = useApi<BusinessProfile[]>('/businesses');
+  const [viewer, setViewer] = useState(false);
+  const biz = businesses.data?.[0];
+  const period = `${RANGE_LABELS[range]}${dates.from ? ` · ${fd(dates.from)} – ${fd(dates.to!)}` : ''}${query ? ` · “${query}”` : ''}`;
+  const buildList = useCallback((paper: Paper) => (biz ? purchasesListHtml(list.data ?? [], biz, period, paper) : ''), [biz, list.data, period]);
   const reload = () => {
     summary.reload();
     list.reload();
@@ -185,7 +194,7 @@ export default function Purchases() {
         )}
       </Loader>
 
-      <Section title="Purchase bills">
+      <Section title="Purchase bills" action={(list.data ?? []).length > 0 && biz ? <Btn small kind="secondary" icon="print-outline" title="Print all" onPress={() => setViewer(true)} /> : undefined}>
         <SearchBar value={q} onChange={setQ} placeholder="Search supplier, item or bill no." />
         {(list.data ?? []).length === 0 && !list.loading && (
           <Empty icon="bag-handle-outline" title={q ? 'No purchases match' : 'No purchases in this period'} hint="Add a bill for anything you buy. Its total is taken from your cash or bank as money out." />
@@ -194,6 +203,7 @@ export default function Purchases() {
           <PurchaseRow key={p.id} p={p} />
         ))}
       </Section>
+      {biz && <DocumentViewer visible={viewer} onClose={() => setViewer(false)} title="Purchases" fileName={`purchases-${dates.from ?? 'all'}`} build={buildList} defaultPaper="A4" />}
     </Screen>
   );
 }

@@ -121,7 +121,7 @@ export function DocumentViewer({
         <Row style={{ justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10 }}>
           <View style={{ flex: 1 }}>
             <Txt v="h">{title}</Txt>
-            <Txt v="small">Preview · exactly what the client will receive</Txt>
+            <Txt v="small">Preview · exactly how it will print and share</Txt>
           </View>
           <IconBtn icon="close" label="Close preview" onPress={onClose} />
         </Row>

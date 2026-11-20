@@ -1,11 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Image, View } from 'react-native';
+import { DocumentViewer } from '@/components/doc-viewer';
 import { Btn, Card, KV, Loader, Row, Screen, Section, Txt, confirm, fd, fm } from '@/components/ui';
 import { api, useApi } from '@/lib/api';
 import { useAuth, useTheme, useToast } from '@/lib/app-context';
-import { PAYMENT_METHOD_LABELS, qtyToString, type Purchase } from '@/lib/shared';
+import { purchaseSlipHtml, type Paper } from '@/lib/pdf';
+import { PAYMENT_METHOD_LABELS, qtyToString, type BusinessProfile, type Purchase } from '@/lib/shared';
 
 export default function PurchaseDetail() {
   const t = useTheme();
@@ -14,6 +16,10 @@ export default function PurchaseDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: p, loading, error, reload, refreshing } = useApi<Purchase & { attachment?: string }>(`/purchases/${id}`);
   const [busy, setBusy] = useState(false);
+  const [viewer, setViewer] = useState(false);
+  const businesses = useApi<BusinessProfile[]>('/businesses');
+  const biz = businesses.data?.find((b) => b.id === p?.businessId);
+  const buildDoc = useCallback((paper: Paper) => (p && biz ? purchaseSlipHtml(p, biz, paper) : ''), [p, biz]);
   const m = (v: number) => fm(v, p);
 
   async function remove() {
@@ -56,6 +62,8 @@ export default function PurchaseDetail() {
                 − {m(p.total)}
               </Txt>
             </Card>
+
+            <Btn icon="document-text-outline" title="Purchase slip · print, PDF or share" onPress={() => setViewer(true)} disabled={!biz} />
 
             <Section title={`Items (${p.lines.length})`}>
               <Card>
@@ -100,6 +108,7 @@ export default function PurchaseDetail() {
           </>
         )}
       </Loader>
+      {p && biz && <DocumentViewer visible={viewer} onClose={() => setViewer(false)} title={`Purchase ${p.number}`} fileName={`purchase-${p.number}`} build={buildDoc} defaultPaper="A5" />}
     </Screen>
   );
 }
