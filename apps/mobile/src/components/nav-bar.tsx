@@ -81,6 +81,7 @@ const JUMPS: { icon: IconName; title: string; href: string }[] = [
   { icon: 'cash-outline', title: 'Payments', href: '/payments' },
   { icon: 'document-outline', title: 'Quotations', href: '/quotations' },
   { icon: 'repeat-outline', title: 'Recurring', href: '/recurring' },
+  { icon: 'bag-handle-outline', title: 'Purchases', href: '/purchases' },
   { icon: 'stats-chart-outline', title: 'Finance', href: '/finance' },
   { icon: 'wallet-outline', title: 'Accounts', href: '/accounts' },
   { icon: 'book-outline', title: 'Cashbook', href: '/cashbook' },

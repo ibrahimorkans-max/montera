@@ -49,6 +49,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: icon('grid-outline', 'grid') }} />
       <Tabs.Screen name="invoices" options={{ title: 'Invoices', tabBarIcon: icon('document-text-outline', 'document-text') }} />
       <Tabs.Screen name="create" options={{ title: 'Create Invoice', tabBarButton: () => <CreateButton disabled={!can('invoices.create')} /> }} />
+      <Tabs.Screen name="purchases" options={{ title: 'Purchases', tabBarIcon: icon('bag-handle-outline', 'bag-handle') }} />
       <Tabs.Screen name="finance" options={{ title: 'Finance', tabBarIcon: icon('stats-chart-outline', 'stats-chart') }} />
       <Tabs.Screen name="more" options={{ title: 'More', tabBarIcon: icon('menu-outline', 'menu') }} />
     </Tabs>

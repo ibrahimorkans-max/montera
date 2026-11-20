@@ -61,7 +61,6 @@ function Navigation() {
           <Stack.Screen name="cashbook" options={{ title: 'Daily Cashbook' }} />
           <Stack.Screen name="statements" options={{ title: 'Profit & Loss · Cash Flow' }} />
           <Stack.Screen name="rates" options={{ title: 'Exchange Rates' }} />
-          <Stack.Screen name="purchases" options={{ title: 'Purchases' }} />
           <Stack.Screen name="purchase/new" options={{ title: 'New Purchase' }} />
           <Stack.Screen name="purchase/[id]" options={{ title: 'Purchase' }} />
           <Stack.Screen name="sync" options={{ title: 'Sync & Offline' }} />
