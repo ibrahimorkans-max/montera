@@ -227,6 +227,7 @@ export default function Finance() {
             </FadeIn>
             <FadeIn delay={120}>
               <Row gap={8} style={{ flexWrap: 'wrap' }}>
+                <Btn small kind="secondary" icon="bag-handle-outline" title="Purchases" onPress={() => router.push('/purchases')} />
                 {manage && <Btn small kind="secondary" icon="swap-vertical-outline" title="Transfer" onPress={() => setTransfer(true)} />}
                 <Btn small kind="secondary" icon="book-outline" title="Cashbook" onPress={() => router.push('/cashbook')} />
                 <Btn small kind="secondary" icon="wallet-outline" title="Accounts" onPress={() => router.push('/accounts')} />
@@ -288,8 +289,9 @@ export default function Finance() {
               {(entries.data ?? []).map((e) => {
                 const income = e.type === 'income';
                 const editable = manage && e.source === 'manual';
+                const bill = e.source === 'purchase' && e.purchaseId;
                 return (
-                  <Card key={`${e.source}-${e.id}`} onPress={editable ? () => edit(e) : undefined} label={`${e.category} ${money(e.amount)}`}>
+                  <Card key={`${e.source}-${e.id}`} onPress={bill ? () => router.push({ pathname: '/purchase/[id]', params: { id: e.purchaseId! } }) : editable ? () => edit(e) : undefined} label={`${e.category} ${money(e.amount)}`}>
                     <Row gap={12}>
                       <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: income ? t.successSoft : t.dangerSoft, alignItems: 'center', justifyContent: 'center' }}>
                         <Ionicons name={income ? 'arrow-down' : 'arrow-up'} size={18} color={income ? t.success : t.danger} />

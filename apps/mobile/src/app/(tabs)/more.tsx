@@ -17,6 +17,7 @@ export default function More() {
       <Section title="Accounts">
         <MenuRow icon="people-outline" title="Clients" sub="Profiles, ledgers and statements" onPress={() => router.push('/clients')} />
         <MenuRow icon="stats-chart-outline" title="Finance" sub="Money in, money out and expenses" onPress={() => router.push('/finance')} />
+        <MenuRow icon="bag-handle-outline" title="Purchases" sub="Bills for things you buy, paid as money out" onPress={() => router.push('/purchases')} />
         <MenuRow icon="wallet-outline" title="Cash & Bank Accounts" sub="Balances, transfers between accounts" onPress={() => router.push('/accounts')} />
         <MenuRow icon="book-outline" title="Daily Cashbook" sub="Opening, in, out and closing for each day" onPress={() => router.push('/cashbook')} />
         <MenuRow icon="trending-up-outline" title="Profit & Loss · Cash Flow" sub="Is the business making money?" onPress={() => router.push('/statements')} />

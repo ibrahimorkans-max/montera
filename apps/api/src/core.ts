@@ -144,6 +144,15 @@ create table if not exists money_account (
   status text not null default 'active' check (status in ('active','archived')), created_at text not null
 );
 create index if not exists account_business on money_account (tenant_id, business_id);
+create table if not exists purchase (
+  id text primary key, tenant_id text not null references tenant, business_id text not null references business,
+  number text not null, supplier text not null, bill_no text not null default '', date text not null,
+  lines text not null, total integer not null check (total > 0), category text not null default 'Purchases',
+  method text not null default 'cash', account_id text, notes text not null default '', attachment text not null default '',
+  client_request_id text, created_by text not null, created_at text not null, updated_at text not null,
+  unique (tenant_id, number), unique (tenant_id, client_request_id)
+);
+create index if not exists purchase_tenant on purchase (tenant_id, date);
 create table if not exists transfer (
   id text primary key, tenant_id text not null references tenant, business_id text not null references business,
   from_account_id text not null references money_account, to_account_id text not null references money_account,
@@ -276,6 +285,11 @@ export const MIGRATIONS: [table: string, column: string, definition: string][] =
     "tenant",
     "sync_seq",
     "integer not null default 0"
+  ],
+  [
+    "finance_entry",
+    "purchase_id",
+    "text"
   ]
 ];
 

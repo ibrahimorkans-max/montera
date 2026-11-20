@@ -10,6 +10,7 @@ const DATA_TABLES: { table: string; sheet: string; omit?: string[] }[] = [
   { table: 'payment_allocation', sheet: 'Payment allocations' },
   { table: 'installment', sheet: 'Installments' },
   { table: 'finance_entry', sheet: 'Money in & out' },
+  { table: 'purchase', sheet: 'Purchases' },
   { table: 'client_refund', sheet: 'Advance refunds' },
   { table: 'transfer', sheet: 'Transfers' },
   { table: 'payment', sheet: 'Payments' },
@@ -25,7 +26,7 @@ const DATA_TABLES: { table: string; sheet: string; omit?: string[] }[] = [
   { table: 'audit_log', sheet: 'Activity log' },
 ];
 /** sheets in the order a person would look for them */
-const SHEET_ORDER = ['Businesses', 'Clients', 'Services', 'Invoices', 'Installments', 'Payments', 'Payment allocations', 'Quotations', 'Recurring invoices', 'Money in & out', 'Accounts', 'Transfers', 'Advance refunds', 'Exchange rates', 'Team', 'Activity log'];
+const SHEET_ORDER = ['Businesses', 'Clients', 'Services', 'Invoices', 'Installments', 'Payments', 'Payment allocations', 'Quotations', 'Recurring invoices', 'Money in & out', 'Purchases', 'Accounts', 'Transfers', 'Advance refunds', 'Exchange rates', 'Team', 'Activity log'];
 
 /** stored as whole minor units (paisa, cents); exported as normal amounts */
 const MONEY = /^(amount|total|subtotal|paid|balance|unit_price|opening_balance|credit_limit|account_amount|item_discounts|overall_discount|taxable_amount|tax_amount|charges_total|rounding_adjustment)$/;

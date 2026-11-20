@@ -4,6 +4,7 @@ import * as acc from './accounts';
 import * as d from './domain';
 import * as fin from './finance';
 import * as fx from './fx';
+import * as pur from './purchases';
 import { HttpError, can, need, type Req, type Res } from './perm';
 import * as quotes from './quotes';
 import * as rec from './recurring';
@@ -240,6 +241,26 @@ export function registerRoutes(app: AppLike, db: Db) {
   app.put('/finance/entries/:id', need('finance.manage'), (req: Req, res: Res) => res.json(fin.saveEntry(db, req.auth, fin.financeSchema.parse(req.body), String(req.params.id))));
   app.delete('/finance/entries/:id', need('finance.manage'), (req: Req, res: Res) => {
     fin.deleteEntry(db, req.auth, String(req.params.id));
+    res.json({ ok: true });
+  });
+
+  // ------------------------------------------------------------ purchases: bills for things bought (each one is Money out)
+
+  const purchaseFilter = (req: Req): pur.PurchaseFilter => {
+    const s = (k: string) => (req.query[k] ? String(req.query[k]) : undefined);
+    return { businessId: s('businessId'), from: s('from'), to: s('to'), q: s('q') };
+  };
+  app.get('/purchases/summary', need('reports.view'), (req: Req, res: Res) => res.json(pur.purchaseSummary(db, T(req), purchaseFilter(req))));
+  app.get('/purchases/suppliers', need('reports.view'), (req: Req, res: Res) => res.json(pur.suppliers(db, T(req))));
+  app.get('/purchases', need('reports.view'), (req: Req, res: Res) => {
+    const { limit, offset } = page(req);
+    res.json(pur.listPurchases(db, T(req), purchaseFilter(req), limit, offset));
+  });
+  app.get('/purchases/:id', need('reports.view'), (req: Req, res: Res) => res.json(pur.getPurchase(db, T(req), String(req.params.id))));
+  app.post('/purchases', need('finance.manage'), (req: Req, res: Res) => res.status(201).json(pur.savePurchase(db, req.auth, pur.purchaseSchema.parse(req.body))));
+  app.put('/purchases/:id', need('finance.manage'), (req: Req, res: Res) => res.json(pur.savePurchase(db, req.auth, pur.purchaseSchema.parse(req.body), String(req.params.id))));
+  app.delete('/purchases/:id', need('finance.manage'), (req: Req, res: Res) => {
+    pur.deletePurchase(db, req.auth, String(req.params.id));
     res.json({ ok: true });
   });
 

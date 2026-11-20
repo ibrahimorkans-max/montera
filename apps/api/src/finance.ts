@@ -38,14 +38,14 @@ function movements(db: Db, tenantId: string, f: FinanceFilter, tail = '', tailAr
   const bizArgs = f.businessId ? [f.businessId] : [];
   const sql = `
     select * from (
-      select e.id, 'manual' as source, e.type, e.category, e.amount, e.date, e.method, e.party, e.notes, e.business_id, e.created_at, e.account_id, coalesce(a.name, '') as account_name, (e.attachment <> '') as has_attachment
+      select e.id, case when e.purchase_id is not null then 'purchase' else 'manual' end as source, e.purchase_id, e.type, e.category, e.amount, e.date, e.method, e.party, e.notes, e.business_id, e.created_at, e.account_id, coalesce(a.name, '') as account_name, (e.attachment <> '') as has_attachment
         from finance_entry e left join money_account a on a.id = e.account_id where e.tenant_id = ? and e.date between ? and ? ${biz.replace('business_id', 'e.business_id')}
       union all
-      select p.id, 'payment', 'income', 'Client payments', coalesce(p.account_amount, p.amount), p.date, p.method, c.name, p.number, p.business_id, p.created_at, p.account_id, coalesce(a.name, ''), 0
+      select p.id, 'payment', null, 'income', 'Client payments', coalesce(p.account_amount, p.amount), p.date, p.method, c.name, p.number, p.business_id, p.created_at, p.account_id, coalesce(a.name, ''), 0
         from payment p join client c on c.id = p.client_id left join money_account a on a.id = p.account_id
         where p.tenant_id = ? and p.verification_status <> 'rejected' and p.date between ? and ? ${biz.replace('business_id', 'p.business_id')}
       union all
-      select r.id, 'refund', 'expense', 'Advance refunds', r.amount, r.date, r.method, c.name, r.notes, r.business_id, r.created_at, r.account_id, coalesce(a.name, ''), 0
+      select r.id, 'refund', null, 'expense', 'Advance refunds', r.amount, r.date, r.method, c.name, r.notes, r.business_id, r.created_at, r.account_id, coalesce(a.name, ''), 0
         from client_refund r join client c on c.id = r.client_id left join money_account a on a.id = r.account_id
         where r.tenant_id = ? and r.date between ? and ? ${biz.replace('business_id', 'r.business_id')}
     ) ${f.type === 'income' || f.type === 'expense' ? `where type = '${f.type}'` : ''}
@@ -56,6 +56,7 @@ function movements(db: Db, tenantId: string, f: FinanceFilter, tail = '', tailAr
 const map = (r: Row): FinanceEntry => ({
   id: r.id,
   source: r.source,
+  purchaseId: r.purchase_id ?? null,
   type: r.type,
   category: r.category,
   amount: r.amount,
@@ -111,6 +112,13 @@ export function summary(db: Db, tenantId: string, f: FinanceFilter): FinanceSumm
   };
 }
 
+
+/** Money out created by a purchase bill belongs to that bill: change it there so the two never disagree. */
+function notFromPurchase(db: Db, tenantId: string, id: string) {
+  const r = db.get('select p.number from finance_entry e join purchase p on p.id = e.purchase_id where e.id = ? and e.tenant_id = ?', id, tenantId);
+  if (r) throw new HttpError(422, `This money out comes from purchase ${r.number}. Edit or delete it in Purchases.`);
+}
+
 export function saveEntry(db: Db, auth: AuthContext, body: FinanceBody, id?: string): FinanceEntry {
   return db.tx(() => {
     ownedRow(db, 'business', auth.tenantId, body.businessId);
@@ -122,6 +130,7 @@ export function saveEntry(db: Db, auth: AuthContext, body: FinanceBody, id?: str
     const account = body.accountId ? ownedAccount(db, auth.tenantId, body.accountId) : ownedAccount(db, auth.tenantId, defaultAccount(db, body.businessId, accountTypeFor(body.method)));
     if (account.business_id !== body.businessId) throw new HttpError(422, 'That account belongs to another business.');
     if (id) {
+      notFromPurchase(db, auth.tenantId, id);
       if (!db.get('select 1 from finance_entry where id = ? and tenant_id = ?', id, auth.tenantId)) throw new HttpError(404, 'Entry not found.');
       db.run(
         'update finance_entry set business_id=?, type=?, category=?, amount=?, date=?, method=?, party=?, notes=?, account_id=?, attachment=? where id=? and tenant_id=?',
@@ -141,6 +150,7 @@ export function saveEntry(db: Db, auth: AuthContext, body: FinanceBody, id?: str
 }
 
 export function deleteEntry(db: Db, auth: AuthContext, id: string) {
+  notFromPurchase(db, auth.tenantId, id);
   const r = db.run('delete from finance_entry where id = ? and tenant_id = ?', id, auth.tenantId);
   if (!r.changes) throw new HttpError(404, 'Entry not found.');
   db.audit(auth.tenantId, auth.userId, 'finance.delete', 'finance_entry', id);

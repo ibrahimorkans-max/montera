@@ -62,7 +62,9 @@ export const EXPENSE_CATEGORIES = ['Salaries', 'Rent', 'Utilities', 'Fuel & tran
 export interface FinanceEntry {
   id: string;
   /** 'payment' rows come from client payments and cannot be edited here */
-  source: 'manual' | 'payment' | 'refund';
+  source: 'manual' | 'payment' | 'refund' | 'purchase';
+  /** set when source is 'purchase': the purchase bill this money out belongs to */
+  purchaseId?: string | null;
   accountId: string | null;
   accountName: string;
   /** photo of the bill or receipt (data URI), manual entries only */
@@ -75,6 +77,50 @@ export interface FinanceEntry {
   party: string;
   notes: string;
   businessId: string;
+}
+
+/** A bill for things the business bought. Saving it records its total as Money out. */
+export interface PurchaseLine {
+  name: string;
+  /** thousandths: 1000 = 1 */
+  qty: number;
+  unit: string;
+  /** minor units per 1 */
+  unitPrice: number;
+  amount: number;
+}
+export interface Purchase {
+  id: string;
+  number: string;
+  businessId: string;
+  supplier: string;
+  billNo: string;
+  date: string;
+  lines: PurchaseLine[];
+  total: number;
+  category: string;
+  method: PaymentMethod;
+  accountId: string | null;
+  accountName: string;
+  notes: string;
+  hasAttachment: boolean;
+  financeEntryId: string | null;
+  currency: string;
+  currencyPrecision: number;
+  createdAt: string;
+}
+export interface PurchaseSummary {
+  total: number;
+  count: number;
+  average: number;
+  thisMonth: number;
+  lastMonth: number;
+  monthly: { month: string; amount: number }[];
+  bySupplier: { name: string; amount: number; count: number }[];
+  byItem: { name: string; qty: number; unit: string; amount: number }[];
+  recent: Purchase[];
+  currency: string;
+  currencyPrecision: number;
 }
 
 export interface FinanceSummary {
