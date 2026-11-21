@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Kaarobarly",
+    "name": "Monetra",
     "slug": "monetra",
     "version": "1.0.7",
     "orientation": "default",
@@ -55,7 +55,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Kaarobarly uses your photos to attach payment proofs, logos and receipts.",
+          "photosPermission": "Monetra uses your photos to attach payment proofs, logos and receipts.",
           "cameraPermission": false,
           "microphonePermission": false
         }
@@ -63,7 +63,7 @@
       [
         "expo-local-authentication",
         {
-          "faceIDPermission": "Kaarobarly uses Face ID to unlock the app."
+          "faceIDPermission": "Monetra uses Face ID to unlock the app."
         }
       ]
     ],

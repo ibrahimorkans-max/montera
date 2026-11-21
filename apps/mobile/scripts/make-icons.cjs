@@ -1,5 +1,5 @@
 /**
- * Draws the Kaarobarly app icon, Android adaptive icon layers, splash image and favicon.
+ * Draws the Monetra app icon, Android adaptive icon layers, splash image and favicon.
  * Run from apps/mobile:  node scripts/make-icons.cjs
  * The shapes match src/components/logo.tsx (a 100 x 100 grid).
  */
@@ -11,10 +11,9 @@ const hex = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), pa
 const BLUE = hex('#1463F3'), TEAL = hex('#0FA9B8'), GREEN = hex('#1DC87C'), NAVY = hex('#0B1B4D'), NAVY2 = hex('#0E2C72'), WHITE = [255, 255, 255];
 const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
 
-// K: stem, rising arm (ends in the arrow), leg
-const SEGS = [[[18, 14], [18, 84]], [[18, 56], [78, 16]], [[36, 44], [56, 84]]];
-const ARROW = [[88.8, 8.8], [82.2, 24.0], [72.2, 9.05]];
-const BARS = [[64, 62], [74, 48], [84, 36]];
+const M = [[10, 80], [30, 28], [47, 62], [80, 16]];
+const ARROW = [[88.2, 4.6], [88.1, 21.8], [71.9, 10.2]];
+const BARS = [[52, 70], [62, 56], [72, 42], [82, 34]];
 const HALF = 7;
 
 function distToSegment(px, py, [ax, ay], [bx, by]) {
@@ -29,7 +28,7 @@ function inTriangle(px, py, [a, b, c]) {
 }
 /** Is the point (logo grid units) inside the mark? */
 function inMark(x, y) {
-  for (const [a, b] of SEGS) if (distToSegment(x, y, a, b) <= HALF) return true;
+  for (let i = 0; i < M.length - 1; i++) if (distToSegment(x, y, M[i], M[i + 1]) <= HALF) return true;
   if (inTriangle(x, y, ARROW)) return true;
   for (const [bx, by] of BARS) if (x >= bx && x <= bx + 7 && y >= by && y <= 84) return true;
   return false;

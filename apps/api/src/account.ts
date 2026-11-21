@@ -47,12 +47,12 @@ export async function exportAllData(db: Db, tenantId: string): Promise<Buffer> {
   const invoicePrecision = new Map(db.all('select id, currency_precision from invoice where tenant_id = ?', tenantId).map((r) => [r.id as string, r.currency_precision as number]));
 
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'Kaarobarly';
+  wb.creator = 'Monetra';
   wb.created = new Date();
   const about = wb.addWorksheet('About');
   about.columns = [{ width: 28 }, { width: 60 }];
   about.addRows([
-    ['Kaarobarly data export'],
+    ['Monetra data export'],
     ['Account', tenant.name],
     ['Exported at', new Date().toISOString()],
     [],

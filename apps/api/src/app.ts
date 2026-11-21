@@ -217,7 +217,7 @@ export function createApp(db: Db) {
       const buf = await exportAllData(db, T(req));
       db.audit(T(req), req.auth.userId, 'account.export', 'tenant', T(req));
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', `attachment; filename="kaarobarly-all-data-${now().slice(0, 10)}.xlsx"`);
+      res.setHeader('Content-Disposition', `attachment; filename="monetra-all-data-${now().slice(0, 10)}.xlsx"`);
       res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
       res.send(buf);
     } catch (e) {

@@ -18,7 +18,7 @@ export async function reportWorkbook(db: Db, tenantId: string, f: ReportFilter, 
   const fmt = r.currencyPrecision > 0 ? `#,##0.${'0'.repeat(r.currencyPrecision)}` : '#,##0';
 
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'Kaarobarly';
+  wb.creator = 'Monetra';
   wb.created = new Date();
 
   function sheet(name: string, columns: { header: string; key: string; width: number; money?: boolean; date?: boolean }[], rows: Record<string, unknown>[], totals?: Record<string, unknown>) {
@@ -196,5 +196,5 @@ export async function reportWorkbook(db: Db, tenantId: string, f: ReportFilter, 
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
 
-/** Plain-text filename-safe label, e.g. "kaarobarly-report-2026-11-01-to-2026-11-30". */
-export const reportFileName = (f: ReportFilter) => `kaarobarly-report-${f.from}-to-${f.to}.xlsx`;
+/** Plain-text filename-safe label, e.g. "monetra-report-2026-11-01-to-2026-11-30". */
+export const reportFileName = (f: ReportFilter) => `monetra-report-${f.from}-to-${f.to}.xlsx`;

@@ -1,7 +1,7 @@
 /**
  * Builds a signed release APK on this computer (needs JDK 17 and the Android SDK).
  *   node scripts/build-apk.cjs
- * Output: ../../dist/Kaarobarly-<version>.apk
+ * Output: ../../dist/Monetra-<version>.apk
  *
  * The signing key lives in apps/mobile/credentials (git-ignored). Keep a backup of that folder:
  * Android only installs an update over an existing app when it is signed with the same key.
@@ -79,6 +79,6 @@ run(`"${gradlew}" assembleRelease --no-daemon`, { cwd: androidDir, env: { ...pro
 const built = path.join(root, 'android/app/build/outputs/apk/release/app-release.apk');
 const outDir = path.resolve(root, '../../dist');
 fs.mkdirSync(outDir, { recursive: true });
-const out = path.join(outDir, `Kaarobarly-${app.version}.apk`);
+const out = path.join(outDir, `Monetra-${app.version}.apk`);
 fs.copyFileSync(built, out);
 console.log(`==> APK ready: ${out} (${(fs.statSync(out).size / 1048576).toFixed(1)} MB)`);

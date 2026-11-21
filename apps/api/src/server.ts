@@ -22,7 +22,7 @@ ensureAccounts(db);
 runRecurring();
 setInterval(runRecurring, 60 * 60 * 1000).unref();
 
-const server = createApp(db).listen(port, host, () => console.log(`Kaarobarly API listening on http://${host}:${port} (database: ${dbPath})`));
+const server = createApp(db).listen(port, host, () => console.log(`Monetra API listening on http://${host}:${port} (database: ${dbPath})`));
 
 // Finish open requests and close the database cleanly when PM2 or systemd stops the process.
 const shutdown = () => {

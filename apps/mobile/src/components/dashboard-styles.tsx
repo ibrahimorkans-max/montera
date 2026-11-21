@@ -244,7 +244,7 @@ function StatusPills({ value, onChange, active, activeText, idle, idleText }: { 
 const matches = (i: Invoice, f: string) =>
   !f || (f === 'paid' ? i.displayStatus === 'paid' : f === 'overdue' ? i.displayStatus === 'overdue' : i.displayStatus === 'unpaid' || i.displayStatus === 'partially_paid');
 
-// ---------------------------------------------------------------- 1. Classic blue
+// ---------------------------------------------------------------- 1. Monetra
 
 function MonetraStyle({ d, pending, variant }: { d: DashboardSummary; pending: number; variant?: HeroStyle }) {
   const t = useTheme();

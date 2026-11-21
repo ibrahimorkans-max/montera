@@ -33,7 +33,7 @@ export default function Recurring() {
 
       <Loader loading={list.loading && !list.data} error={list.data ? '' : list.error} onRetry={reload}>
         {(list.data ?? []).length === 0 ? (
-          <Empty icon="repeat-outline" title="No recurring invoices yet" hint="Set up a schedule once and Kaarobarly prepares each invoice for you on time." />
+          <Empty icon="repeat-outline" title="No recurring invoices yet" hint="Set up a schedule once and Monetra prepares each invoice for you on time." />
         ) : (
           <Section title="Schedules">
             {list.data!.map((r, n) => (

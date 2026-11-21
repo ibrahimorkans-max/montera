@@ -130,7 +130,7 @@ function LockScreen({ config, onUnlock, onPasswordReset }: { config: LockConfig;
 
   const fingerprint = useCallback(async () => {
     try {
-      const r = await LocalAuthentication.authenticateAsync({ promptMessage: 'Unlock Kaarobarly', cancelLabel: 'Use PIN', disableDeviceFallback: true });
+      const r = await LocalAuthentication.authenticateAsync({ promptMessage: 'Unlock Monetra', cancelLabel: 'Use PIN', disableDeviceFallback: true });
       if (r.success) onUnlock();
     } catch {
       setMessage('Fingerprint is not available right now. Enter your PIN.');
@@ -177,7 +177,7 @@ function LockScreen({ config, onUnlock, onPasswordReset }: { config: LockConfig;
         </View>
       </View>
       <View style={{ alignItems: 'center', gap: 4 }}>
-        <Text style={{ color: '#fff', fontSize: 24, fontWeight: '800' }}>Kaarobarly is locked</Text>
+        <Text style={{ color: '#fff', fontSize: 24, fontWeight: '800' }}>Monetra is locked</Text>
         <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 15 }}>{user?.name}</Text>
       </View>
       <Text accessibilityLiveRegion="polite" style={{ color: '#FFD98A', fontSize: 14, fontWeight: '600', minHeight: 20, textAlign: 'center' }}>

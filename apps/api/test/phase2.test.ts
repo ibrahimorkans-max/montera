@@ -152,7 +152,7 @@ test('reports: collections, aging, client and service revenue, and Excel export'
 
   const x = await call(token, 'GET', `/reports/export.xlsx?from=${iso(-60)}&to=${iso(0)}`);
   assert.equal(x.status, 200);
-  assert.match(x.headers.get('content-disposition') ?? '', /kaarobarly-report-.*\.xlsx/);
+  assert.match(x.headers.get('content-disposition') ?? '', /monetra-report-.*\.xlsx/);
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load((x.body as Buffer).buffer as ArrayBuffer);
   assert.deepEqual(
