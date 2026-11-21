@@ -139,7 +139,7 @@ export function NavBar({ title }: { title?: string }) {
           <NavBtn icon="chevron-back" label="Back" onPress={navHistory.back} disabled={!navHistory.canBack() && isHome} />
           <NavBtn icon="chevron-forward" label="Forward" onPress={navHistory.forward} disabled={!navHistory.canForward()} />
           <Text accessibilityRole="header" numberOfLines={1} style={{ flex: 1, color: t.text, fontSize: 17, fontWeight: '800', marginLeft: 4 }}>
-            {title ?? 'Monetra'}
+            {title ?? 'Kaarobarly'}
           </Text>
           <NavBtn icon={isHome ? 'home' : 'home-outline'} label="Home" onPress={() => go('/')} disabled={isHome} />
           <NavBtn icon="apps-outline" label="Go to page" onPress={() => setMenu(true)} />

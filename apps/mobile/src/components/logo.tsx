@@ -2,7 +2,7 @@ import { Text, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Path, Polygon, Rect, Stop } from 'react-native-svg';
 
 export const BRAND = {
-  name: 'Monetra',
+  name: 'Kaarobarly',
   tagline: ['Invoice.', 'Track.', 'Grow.'] as const,
   navy: '#0B1B4D',
   blue: '#1463F3',
@@ -12,22 +12,22 @@ export const BRAND = {
 };
 
 // Geometry on a 100 x 100 grid. scripts/make-icons.cjs draws the same shapes for the icon files.
-const M_PATH = 'M10 80 L30 28 L47 62 L80 16';
-const ARROW = '88.2,4.6 88.1,21.8 71.9,10.2';
+/** K: a stem, an arm that rises into an arrow, and a leg. */
+const K_PATHS = ['M18 14 L18 84', 'M18 56 L78 16', 'M36 44 L56 84'];
+const ARROW = '88.8,8.8 82.2,24.0 72.2,9.05';
 const BARS = [
-  { x: 52, y: 70 },
-  { x: 62, y: 56 },
-  { x: 72, y: 42 },
-  { x: 82, y: 34 },
+  { x: 64, y: 62 },
+  { x: 74, y: 48 },
+  { x: 84, y: 36 },
 ];
 
-/** The Monetra mark: an M whose last stroke becomes a rising arrow over growing bars. */
+/** The Kaarobarly mark: a K whose arm becomes a rising arrow over growing bars. */
 export function LogoMark({ size = 48, mono }: { size?: number; mono?: string }) {
-  const paint = mono ?? 'url(#monetra)';
+  const paint = mono ?? 'url(#brand)';
   return (
-    <Svg width={size} height={size} viewBox="0 0 100 100" accessibilityLabel="Monetra logo">
+    <Svg width={size} height={size} viewBox="0 0 100 100" accessibilityLabel="Kaarobarly logo">
       <Defs>
-        <LinearGradient id="monetra" x1="10" y1="0" x2="90" y2="0" gradientUnits="userSpaceOnUse">
+        <LinearGradient id="brand" x1="10" y1="0" x2="90" y2="0" gradientUnits="userSpaceOnUse">
           <Stop offset="0" stopColor={BRAND.blue} />
           <Stop offset="0.56" stopColor={BRAND.teal} />
           <Stop offset="1" stopColor={BRAND.green} />
@@ -36,7 +36,9 @@ export function LogoMark({ size = 48, mono }: { size?: number; mono?: string }) 
       {BARS.map((b) => (
         <Rect key={b.x} x={b.x} y={b.y} width={7} height={84 - b.y} rx={2} fill={paint} />
       ))}
-      <Path d={M_PATH} stroke={paint} strokeWidth={14} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      {K_PATHS.map((d) => (
+        <Path key={d} d={d} stroke={paint} strokeWidth={14} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      ))}
       <Polygon points={ARROW} fill={paint} />
     </Svg>
   );

@@ -50,7 +50,7 @@ export const INVOICE_TEMPLATE_LABELS: Record<InvoiceTemplate, string> = { amber:
 export const DASHBOARD_STYLES = ['monetra', 'minimal', 'emerald', 'wallet', 'glass', 'soft', 'midnight'] as const;
 export type DashboardStyle = (typeof DASHBOARD_STYLES)[number];
 export const DASHBOARD_STYLE_LABELS: Record<DashboardStyle, { name: string; hint: string }> = {
-  monetra: { name: 'Monetra', hint: 'Blue gradient balance card with stat tiles' },
+  monetra: { name: 'Classic Blue', hint: 'Blue gradient balance card with stat tiles' },
   minimal: { name: 'Studio', hint: 'Clean white, revenue bars and status tabs' },
   emerald: { name: 'Emerald Report', hint: 'Dark green report card with a trend line' },
   wallet: { name: 'Wallet', hint: 'Money balance, quick actions and spending ring' },

@@ -39,7 +39,7 @@ export default function Settings() {
   async function exportAll() {
     setExporting(true);
     try {
-      await downloadFromApi('/account/export.xlsx', `monetra-all-data-${new Date().toISOString().slice(0, 10)}.xlsx`);
+      await downloadFromApi('/account/export.xlsx', `kaarobarly-all-data-${new Date().toISOString().slice(0, 10)}.xlsx`);
       toast('Export ready');
     } catch (e: any) {
       toast(e.message, 'error');

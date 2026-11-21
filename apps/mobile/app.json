@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Monetra",
+    "name": "Kaarobarly",
     "slug": "monetra",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "monetra",
@@ -14,7 +14,7 @@
     },
     "android": {
       "package": "com.zhtrader.monetra",
-      "versionCode": 7,
+      "versionCode": 8,
       "adaptiveIcon": {
         "backgroundColor": "#0B1B4D",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -55,7 +55,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Monetra uses your photos to attach payment proofs, logos and receipts.",
+          "photosPermission": "Kaarobarly uses your photos to attach payment proofs, logos and receipts.",
           "cameraPermission": false,
           "microphonePermission": false
         }
@@ -63,7 +63,7 @@
       [
         "expo-local-authentication",
         {
-          "faceIDPermission": "Monetra uses Face ID to unlock the app."
+          "faceIDPermission": "Kaarobarly uses Face ID to unlock the app."
         }
       ]
     ],

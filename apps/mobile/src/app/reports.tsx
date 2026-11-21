@@ -93,12 +93,12 @@ export default function Reports() {
   const { data: r, loading, error, reload, refreshing } = useApi<ReportData>(valid ? `/reports${query}` : null);
   const business = businesses.data?.find((b) => b.id === businessId) ?? businesses.data?.[0];
   const money = (v: number) => fm(v, r);
-  const buildDoc = useCallback((paper: Paper) => (r && business ? reportHtml(r, business, `${user?.tenantName ?? 'Monetra'} report`, paper) : ''), [r, business, user]);
+  const buildDoc = useCallback((paper: Paper) => (r && business ? reportHtml(r, business, `${user?.tenantName ?? 'Kaarobarly'} report`, paper) : ''), [r, business, user]);
 
   async function excel() {
     setBusy(true);
     try {
-      await downloadFromApi(`/reports/export.xlsx${query}`, `monetra-report-${range.from}-to-${range.to}.xlsx`);
+      await downloadFromApi(`/reports/export.xlsx${query}`, `kaarobarly-report-${range.from}-to-${range.to}.xlsx`);
     } catch (e: any) {
       toast(e.message, 'error');
     } finally {
@@ -405,7 +405,7 @@ export default function Reports() {
         )}
       </Loader>
 
-      {r && business && <DocumentViewer visible={viewer} onClose={() => setViewer(false)} title="Financial report" fileName={`monetra-report-${range.from}-to-${range.to}`} build={buildDoc} />}
+      {r && business && <DocumentViewer visible={viewer} onClose={() => setViewer(false)} title="Financial report" fileName={`kaarobarly-report-${range.from}-to-${range.to}`} build={buildDoc} />}
     </Screen>
   );
 }
