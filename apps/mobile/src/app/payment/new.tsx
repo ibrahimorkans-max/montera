@@ -113,7 +113,7 @@ export default function RecordPayment() {
           date,
           method,
           accountId: accountId || null,
-          reference: reference.trim(),
+          reference: method === 'cash' ? '' : reference.trim(),
           notes: notes.trim(),
           proof,
           clientRequestId: requestId,
@@ -240,7 +240,11 @@ export default function RecordPayment() {
       <Chips value={method} onChange={(v) => (setMethod(v), setAccountId(''))} options={PAYMENT_METHODS.map((x) => ({ value: x, label: PAYMENT_METHOD_LABELS[x] }))} />
       <AccountSelect label="Received into" accounts={accountChoices} value={accountId} onChange={setAccountId} />
       <DateField label="Payment date" value={date} onChange={setDate} quick={[{ label: 'Today', value: todayStr() }]} />
-      <Field label="Transaction reference (optional)" value={reference} onChangeText={setReference} placeholder="Cheque no., transaction ID" />
+      {method === 'cash' ? (
+        <Txt v="small">Transaction ID: Cash</Txt>
+      ) : (
+        <Field label="Transaction ID" value={reference} onChangeText={setReference} placeholder="Bank / JazzCash / Easypaisa transaction ID or cheque no." />
+      )}
       <Field label="Notes (optional)" value={notes} onChangeText={setNotes} multiline />
 
       <Card>

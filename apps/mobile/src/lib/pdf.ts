@@ -59,7 +59,21 @@ const STATUS: Record<string, string> = {
 const LABELS = {
   invoice: { title: 'INVOICE', to: 'Invoice to', short: 'Invoice', due: 'Due date', dueLower: 'due' },
   quotation: { title: 'QUOTATION', to: 'Quotation for', short: 'Quote', due: 'Valid until', dueLower: 'valid until' },
+  purchase: { title: 'PURCHASE', to: 'Bought from', short: 'Purchase', due: 'Recorded', dueLower: 'recorded' },
 };
+
+export const DEFAULT_DISCLAIMER =
+  'This is a computer-generated document. Please check all details on receipt; errors and omissions excepted (E&OE). Goods once sold are subject to the terms agreed between both parties.';
+
+/** "Cash" for cash; otherwise the bank / wallet transaction ID, or a dash when none was entered. */
+export const txnId = (method: string, reference: string) => (method === 'cash' ? 'Cash' : reference || '—');
+
+/** Notes and Disclaimer, printed at the end of every invoice, quotation and purchase slip. */
+function tailHtml(notes: string, b: BusinessProfile) {
+  const disc = nl(b.invoiceDisclaimer || DEFAULT_DISCLAIMER);
+  return `<div class="tail"><div><div class="label">Notes</div><div class="muted">${notes ? nl(notes) : '—'}</div></div>
+    <div><div class="label">Disclaimer</div><div class="muted" style="font-size:.9em">${disc}</div></div></div>`;
+}
 
 /** Mix a hex colour with white: tint('#1F3A8A', 0.9) is a very light blue. */
 function tint(hex: string, amount: number): string {
@@ -97,6 +111,8 @@ table { width: 100%; border-collapse: collapse; }
 .extra .r { text-align: right; }
 .two { display: flex; gap: 22px; align-items: flex-start; }
 .two > * { flex: 1; min-width: 0; }
+.tail { display: flex; gap: 22px; margin-top: 16px; padding-top: 10px; border-top: 1px dashed #c9c9cf; }
+.tail > * { flex: 1; min-width: 0; }
 `;
 
 function shell(title: string, paper: Paper, css: string, body: string, vars = ''): string {
@@ -115,12 +131,14 @@ ${BASE_CSS}${css}
 // ---------------------------------------------------------------- shared invoice pieces
 
 interface InvoiceDoc {
-  /** what the document is; quotations reuse the invoice designs with their own wording */
-  docType?: 'invoice' | 'quotation';
+  /** what the document is; quotations and purchases reuse the invoice designs with their own wording */
+  docType?: 'invoice' | 'quotation' | 'purchase';
   invoice: Invoice;
   business: BusinessProfile;
   client: Client;
   payments: Payment[];
+  /** extra label/value rows printed as "Payment details" (purchases) */
+  info?: [string, string][];
 }
 
 function parts(d: InvoiceDoc) {
@@ -151,15 +169,18 @@ function parts(d: InvoiceDoc) {
 
   const paid = d.payments.filter((p) => p.verificationStatus !== 'rejected');
   const paymentRows = paid
-    .map((p) => `<tr><td>${fd(p.date)}</td><td>${esc(p.number)}</td><td>${PAYMENT_METHOD_LABELS[p.method]}</td><td class="r">${m(p.allocations.find((x) => x.invoiceId === i.id)?.amount ?? 0)}</td></tr>`)
+    .map((p) => `<tr><td>${fd(p.date)}</td><td>${esc(p.number)}</td><td>${PAYMENT_METHOD_LABELS[p.method]}</td><td>${esc(txnId(p.method, p.reference))}</td><td class="r">${m(p.allocations.find((x) => x.invoiceId === i.id)?.amount ?? 0)}</td></tr>`)
     .join('');
+  const info = (d.info ?? []).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="r">${esc(v)}</td></tr>`).join('');
   const schedule = i.installments
     .map((s, n) => `<tr><td>${n + 1}</td><td>${fd(s.dueDate)}</td><td>${s.status === 'paid' ? 'Paid' : s.status === 'partial' ? `Part paid ${m(s.paid ?? 0)}` : s.status === 'overdue' ? 'Overdue (unpaid)' : 'Unpaid'}</td><td class="r">${m(s.amount)}</td></tr>`)
     .join('');
-  const extras = `${schedule ? `<div class="extra"><div class="label">Installment schedule</div><table><tr><th>#</th><th>Due</th><th>Status</th><th class="r">Amount</th></tr>${schedule}</table></div>` : ''}
-    ${paymentRows ? `<div class="extra"><div class="label">Payments received</div><table><tr><th>Date</th><th>Receipt</th><th>Method</th><th class="r">Amount</th></tr>${paymentRows}</table></div>` : ''}`;
+  const extras = `${info ? `<div class="extra"><div class="label">Payment details</div><table>${info}</table></div>` : ''}${schedule ?`<div class="extra"><div class="label">Installment schedule</div><table><tr><th>#</th><th>Due</th><th>Status</th><th class="r">Amount</th></tr>${schedule}</table></div>` : ''}
+    ${paymentRows ? `<div class="extra"><div class="label">Payments received</div><table><tr><th>Date</th><th>Receipt</th><th>Method</th><th>Transaction ID</th><th class="r">Amount</th></tr>${paymentRows}</table></div>` : ''}
+    ${tailHtml(i.notes, b)}`;
 
-  const bank = [b.bankDetails && nl(b.bankDetails), b.iban && `IBAN: ${esc(b.iban)}`, b.paymentInstructions && nl(b.paymentInstructions)].filter(Boolean).join('<br/>');
+  const purchase = d.docType === 'purchase';
+  const bank = purchase ? '' : [b.bankDetails && nl(b.bankDetails), b.iban && `IBAN: ${esc(b.iban)}`, b.paymentInstructions && nl(b.paymentInstructions)].filter(Boolean).join('<br/>');
   const name = esc(b.tradingName || b.legalName);
   const clientLines = [esc(c.contactPerson), nl(i.billingAddress || [c.address, c.city, c.province, c.country].filter(Boolean).join(', ')), esc(c.phone), esc(c.email), c.ntn && `NTN: ${esc(c.ntn)}`].filter(Boolean).join('<br/>');
   const issuerLines = [nl(b.address), b.ntn && `NTN: ${esc(b.ntn)}`, b.registrationNo && `Reg: ${esc(b.registrationNo)}`].filter(Boolean).join('<br/>');
@@ -173,7 +194,9 @@ function parts(d: InvoiceDoc) {
     number: esc(i.number ?? 'DRAFT'),
     status: STATUS[i.displayStatus] ?? '',
     terms: i.paymentTerms ? nl(i.paymentTerms) : '',
-    notes: i.notes ? nl(i.notes) : '',
+    // notes are printed once, in the Notes / Disclaimer section at the end
+    notes: '',
+    payFallback: purchase ? (d.info ?? []).map(([k, v]) => `${esc(k)}: ${esc(v)}`).join('<br/>') : 'Cash or bank transfer',
     footer: b.invoiceFooter ? nl(b.invoiceFooter) : 'Thank you for your business!',
     initial: esc((b.tradingName || b.legalName || '?').trim().charAt(0).toUpperCase()),
   };
@@ -249,7 +272,7 @@ function ocean(p: Parts): [string, string] {
     <div class="hd"><div class="brand">${p.logo || ''}<span>${p.name}</span></div><div class="title"><h1>${p.L.title}</h1>${shapes}</div></div>
     <div class="meta"><div><span class="label">${p.L.to}:</span> <b style="font-size:1.25em">${esc(p.c.name)}</b><div class="muted" style="margin-top:4px">${p.clientLines}</div></div>
       <div><b>${p.L.short} No:</b> ${p.number}<br/><b>Date:</b> ${fd(p.i.issueDate)}<br/><b>${p.L.due}:</b> ${fd(p.i.dueDate)}${p.i.reference ? `<br/><b>Reference:</b> ${esc(p.i.reference)}` : ''}<br/><span class="badge" style="color:var(--a);margin-top:4px">${p.status}</span></div></div>
-    <div class="cols"><div class="side">${block('Payment method', p.bank || 'Cash or bank transfer')}${block('Terms &amp; conditions', p.terms)}${block('Notes', p.notes)}</div>
+    <div class="cols"><div class="side">${block('Payment method', p.bank || p.payFallback)}${block('Terms &amp; conditions', p.terms)}${block('Notes', p.notes)}</div>
       <div class="main"><table class="items">${p.head}${p.rows}</table><table class="tot">${p.sub}${p.grand}${p.paidRows}</table></div></div>
     <div class="under">${p.extras}</div>
     <div class="sigwrap">${p.sig}</div>
@@ -316,7 +339,7 @@ function crimson(p: Parts): [string, string] {
     <div class="info"><div><div class="label" style="text-transform:uppercase">${p.L.to}:</div><b>${esc(p.c.name)}</b><div class="muted">${p.clientLines}</div></div>
       <div class="box"><div><b>${p.L.short} number</b><div class="muted">${p.number}</div></div><div><b>Date</b><div class="muted">${fd(p.i.issueDate)}</div></div><div><b>${p.L.due}</b><div class="muted">${fd(p.i.dueDate)}</div></div></div></div>
     <table class="items">${p.head}${p.rows}</table>
-    <div class="two" style="margin-top:20px"><div><div class="two" style="gap:14px"><div>${block('Payment method', p.bank || 'Cash or bank transfer')}</div><div>${block('Terms &amp; condition', p.terms)}</div></div>${p.notes ? `<div class="muted">${p.notes}</div>` : ''}</div>
+    <div class="two" style="margin-top:20px"><div><div class="two" style="gap:14px"><div>${block('Payment method', p.bank || p.payFallback)}</div><div>${block('Terms &amp; condition', p.terms)}</div></div>${p.notes ? `<div class="muted">${p.notes}</div>` : ''}</div>
       <div><table class="tot">${p.sub}${p.grand}${p.paidRows}</table></div></div>
     ${p.extras}
     <div class="two" style="margin-top:26px;align-items:flex-end"><div>${p.sig}</div><div class="r" style="white-space:normal"><div class="thanks">${p.footer}</div><div class="muted" style="margin-top:6px">${p.contacts.join(' &#160;·&#160; ')}</div></div></div>
@@ -357,7 +380,7 @@ export function invoiceHtml(d: InvoiceDoc, paper: Paper = 'A4', template?: Invoi
   // narrow receipt rolls always use the plain layout
   const chosen: InvoiceTemplate = paper === 'thermal' ? 'classic' : (template ?? d.business.invoiceTemplate ?? 'amber');
   const [css, body] = DESIGNS[chosen](parts(d));
-  return shell(`${d.docType === 'quotation' ? 'Quotation' : 'Invoice'} ${d.invoice.number ?? 'Draft'}`, paper, css, body, colorVars(chosen, chosen === (d.business.invoiceTemplate ?? 'amber') ? d.business.accentColor : ''));
+  return shell(`${d.docType === 'quotation' ? 'Quotation' : d.docType === 'purchase' ? 'Purchase' : 'Invoice'} ${d.invoice.number ?? 'Draft'}`, paper, css, body, colorVars(chosen, chosen === (d.business.invoiceTemplate ?? 'amber') ? d.business.accentColor : ''));
 }
 
 // ---------------------------------------------------------------- receipt and statement
@@ -402,8 +425,8 @@ export function receiptHtml(d: { payment: Payment; business: BusinessProfile; cl
     <div class="in"><div class="two"><div><div class="label">Received from</div><b style="font-size:1.15em">${esc(c.name)}</b><div class="muted">${[esc(c.contactPerson), esc(c.phone)].filter(Boolean).join('<br/>')}</div></div>
       <div class="r"><div class="label">Amount received</div><div class="amount">${m(p.amount)}</div></div></div>
     <table class="kv" style="margin-top:14px"><tr><td>Payment method</td><td class="r">${PAYMENT_METHOD_LABELS[p.method]}</td></tr>
-      ${p.reference ? `<tr><td>Transaction reference</td><td class="r">${esc(p.reference)}</td></tr>` : ''}<tr><td>Received by</td><td class="r">${esc(p.receivedBy)}</td></tr>
-      ${p.notes ? `<tr><td>Notes</td><td class="r" style="white-space:normal">${nl(p.notes)}</td></tr>` : ''}</table>
+      <tr><td>Transaction ID</td><td class="r">${esc(txnId(p.method, p.reference))}</td></tr><tr><td>Received by</td><td class="r">${esc(p.receivedBy)}</td></tr></table>
+    ${tailHtml(p.notes, b)}
     ${applied ? `<div class="extra"><div class="label">Applied to</div><table class="items"><tr><th>Invoice</th><th class="r">Invoice total</th><th class="r">This payment</th><th class="r">Balance now</th></tr>${applied}</table></div>` : ''}
     ${p.unallocated > 0 ? `<div class="extra"><b>${m(p.unallocated)}</b> is held as an advance on the client's account.</div>` : ''}
     ${simpleSig(b)}</div><div class="grow"></div><div class="muted" style="text-align:center;margin-top:14px">${b.invoiceFooter ? nl(b.invoiceFooter) : ''}</div></div>`,
@@ -412,26 +435,56 @@ export function receiptHtml(d: { payment: Payment; business: BusinessProfile; cl
 }
 
 /** Slip for one purchase bill: what was bought, from whom, and what was paid. */
-export function purchaseSlipHtml(p: Purchase, b: BusinessProfile, paper: Paper = 'A5'): string {
-  const m = (v: number) => formatMoney(v, p.currency, p.currencyPrecision);
-  const rows = p.lines
-    .map((l, i) => `<tr><td>${i + 1}</td><td>${esc(l.name)}</td><td class="r">${qtyToString(l.qty)}${l.unit ? ' ' + esc(l.unit) : ''}</td><td class="r">${m(l.unitPrice)}</td><td class="r">${m(l.amount)}</td></tr>`)
-    .join('');
-  return shell(
-    `Purchase ${p.number}`,
-    paper,
-    SIMPLE_CSS,
-    `<div class="page">${simpleHead(b, 'PURCHASE SLIP', `<b>${esc(p.number)}</b> · ${fd(p.date)}${p.billNo ? `<br/>Supplier bill ${esc(p.billNo)}` : ''}`)}
-    <div class="in"><div class="two"><div><div class="label">Bought from</div><b style="font-size:1.15em">${esc(p.supplier)}</b></div>
-      <div class="r"><div class="label">Total paid</div><div class="amount">${m(p.total)}</div></div></div>
-    <div class="extra"><table class="items"><tr><th>#</th><th>Item</th><th class="r">Qty</th><th class="r">Price</th><th class="r">Amount</th></tr>${rows}
-      <tr><td></td><td colspan="3"><b>Total</b></td><td class="r"><b>${m(p.total)}</b></td></tr></table></div>
-    <table class="kv" style="margin-top:14px"><tr><td>Paid with</td><td class="r">${PAYMENT_METHOD_LABELS[p.method]}</td></tr>
-      ${p.accountName ? `<tr><td>Paid from</td><td class="r">${esc(p.accountName)}</td></tr>` : ''}<tr><td>Category</td><td class="r">${esc(p.category)}</td></tr>
-      ${p.notes ? `<tr><td>Notes</td><td class="r" style="white-space:normal">${nl(p.notes)}</td></tr>` : ''}</table>
-    ${simpleSig(b)}</div><div class="grow"></div><div class="muted" style="text-align:center;margin-top:14px">${b.invoiceFooter ? nl(b.invoiceFooter) : ''}</div></div>`,
-    simpleVars(b),
-  );
+export function purchaseSlipHtml(p: Purchase, b: BusinessProfile, paper: Paper = 'A5', template?: InvoiceTemplate): string {
+  const plan = p.installments ?? [];
+  const paid = p.paid ?? p.total;
+  const balance = p.balance ?? 0;
+  // a purchase printed with the same five invoice designs: the supplier stands where the client would
+  const invoice = {
+    id: p.id,
+    number: p.number,
+    businessId: p.businessId,
+    clientId: '',
+    clientName: p.supplier,
+    businessName: b.tradingName || b.legalName,
+    issueDate: p.date,
+    dueDate: p.createdAt?.slice(0, 10) || p.date,
+    reference: p.billNo ? `Supplier bill ${p.billNo}` : '',
+    billingAddress: '',
+    lines: p.lines.map((l) => ({ serviceId: null, name: l.name, description: '', qty: l.qty, unit: l.unit, unitPrice: l.unitPrice, discountType: 'percent', discountValue: 0, taxRateBp: 0, lineTotal: l.amount })),
+    overallDiscountType: 'percent',
+    overallDiscountValue: 0,
+    charges: [],
+    notes: p.notes,
+    paymentTerms: '',
+    installments: plan.map((x) => ({ dueDate: x.dueDate, amount: x.amount, paid: x.paid ? x.amount : 0, status: x.paid ? 'paid' : 'pending' })),
+    status: 'final',
+    displayStatus: balance <= 0 ? 'paid' : paid > 0 ? 'partially_paid' : 'unpaid',
+    currency: p.currency,
+    currencyPrecision: p.currencyPrecision,
+    taxInclusive: false,
+    rounding: 'none',
+    subtotal: p.total,
+    itemDiscounts: 0,
+    overallDiscount: 0,
+    taxableAmount: p.total,
+    taxAmount: 0,
+    chargesTotal: 0,
+    roundingAdjustment: 0,
+    total: p.total,
+    paid,
+    balance,
+    createdAt: p.createdAt,
+    finalizedAt: p.createdAt,
+  } as unknown as Invoice;
+  const supplier = { name: p.supplier } as Client;
+  const info: [string, string][] = [
+    ['Paid with', PAYMENT_METHOD_LABELS[p.method]],
+    ['Transaction ID', txnId(p.method, p.reference ?? '')],
+    ...(p.accountName ? [['Paid from', p.accountName] as [string, string]] : []),
+    ['Category', p.category],
+  ];
+  return invoiceHtml({ docType: 'purchase', invoice, business: b, client: supplier, payments: [], info }, paper, template);
 }
 
 /** Every purchase bill in a period on one sheet, with a grand total. */

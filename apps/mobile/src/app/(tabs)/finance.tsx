@@ -4,7 +4,8 @@ import { router } from 'expo-router';
 import { Animated, Easing, Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { AccountIcon, AccountSelect, TransferSheet } from '@/components/money';
 import { pickImage } from '@/lib/image';
-import { Btn, Card, Chips, CountUp, DateField, Empty, FadeIn, Field, Gradient, Loader, Row, Screen, Section, Select, Sheet, Txt, addDays, confirm, fd, fm, isDate, todayStr } from '@/components/ui';
+import { Hero, HeroStylePicker, useScreenStyle } from '@/components/styles-kit';
+import { Btn, Card, Chips, DateField, Empty, FadeIn, Field, IconBtn, Loader, Row, Screen, Section, Select, Sheet, Txt, addDays, confirm, fd, fm, isDate, todayStr } from '@/components/ui';
 import { api, qs, useApi } from '@/lib/api';
 import { useAuth, useTheme, useToast } from '@/lib/app-context';
 import {
@@ -98,6 +99,8 @@ export default function Finance() {
   const accounts = useApi<MoneyAccount[]>('/accounts');
   const usedCategories = useApi<{ income: string[]; expense: string[] }>('/finance/categories');
   const [transfer, setTransfer] = useState(false);
+  const [look, setLook] = useScreenStyle('finance');
+  const [picker, setPicker] = useState(false);
   const s = summary.data;
   const money = (v: number) => fm(v, s);
   const manage = can('finance.manage');
@@ -158,10 +161,14 @@ export default function Finance() {
 
   return (
     <Screen onRefresh={reload} refreshing={summary.refreshing}>
-      <View style={{ paddingTop: 0 }}>
-        <Txt v="title">Finance</Txt>
-        <Txt v="sub">Where your money comes from and where it is used.</Txt>
-      </View>
+      <HeroStylePicker visible={picker} onClose={() => setPicker(false)} value={look} onChange={setLook} title="Finance dashboard style" />
+      <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <View style={{ flex: 1 }}>
+          <Txt v="title">Finance</Txt>
+          <Txt v="sub">Where your money comes from and where it is used.</Txt>
+        </View>
+        <IconBtn icon="color-palette-outline" label="Change finance dashboard style" onPress={() => setPicker(true)} />
+      </Row>
       <Chips
         value={range}
         onChange={setRange}
@@ -177,26 +184,16 @@ export default function Finance() {
         {s && (
           <>
             <FadeIn>
-              <Gradient>
-                <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, fontWeight: '600' }}>NET CASH FLOW</Text>
-                <CountUp value={s.net} format={money} style={{ color: '#fff', fontSize: 34, fontWeight: '800', letterSpacing: -0.5, marginTop: 2 }} />
-                <Row gap={10} style={{ marginTop: 14 }}>
-                  <View style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 16, padding: 12 }}>
-                    <Row gap={6}>
-                      <Ionicons name="arrow-down-circle" size={18} color="#86EFAC" />
-                      <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12.5, fontWeight: '600' }}>Money in</Text>
-                    </Row>
-                    <CountUp value={s.income} format={money} style={{ color: '#fff', fontSize: 17, fontWeight: '800', marginTop: 4 }} />
-                  </View>
-                  <View style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 16, padding: 12 }}>
-                    <Row gap={6}>
-                      <Ionicons name="arrow-up-circle" size={18} color="#FDA4AF" />
-                      <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12.5, fontWeight: '600' }}>Money out</Text>
-                    </Row>
-                    <CountUp value={s.expense} format={money} style={{ color: '#fff', fontSize: 17, fontWeight: '800', marginTop: 4 }} />
-                  </View>
-                </Row>
-              </Gradient>
+              <Hero
+                variant={look}
+                label="NET CASH FLOW"
+                value={s.net}
+                format={money}
+                stats={[
+                  { label: 'Money in', value: s.income, format: money, icon: 'arrow-down-circle', tone: '#86EFAC' },
+                  { label: 'Money out', value: s.expense, format: money, icon: 'arrow-up-circle', tone: '#FDA4AF' },
+                ]}
+              />
             </FadeIn>
 
             {manage && (

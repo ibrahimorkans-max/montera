@@ -6,6 +6,7 @@ import { Animated, Pressable, Text, View } from 'react-native';
 import { useAuth, useTheme } from '@/lib/app-context';
 import { PAYMENT_METHOD_LABELS, type DashboardStyle, type DashboardSummary, type Invoice } from '@/lib/shared';
 import { AreaLine, Bars, Donut, monthLabel } from './charts';
+import { Hero, heroInk, softShadow, type HeroStyle } from './styles-kit';
 import { InstallmentItem, InvoiceRow, PaymentRow, settleAmounts } from './rows';
 import { Badge, Card, CountUp, FadeIn, Row, Section, Txt, fd, fm, usePressScale, type IconName } from './ui';
 
@@ -22,6 +23,19 @@ const pct = (now: number, before: number) => (before > 0 ? Math.round(((now - be
 /** Miniature of each style, used when choosing one. */
 export function StylePreview({ style, selected }: { style: DashboardStyle; selected: boolean }) {
   const t = useTheme();
+  if (style === 'glass' || style === 'soft' || style === 'midnight') {
+    const sample = (v: number) => `${Math.round(v / 1000)}k`;
+    return (
+      <View pointerEvents="none" style={{ height: 150, borderRadius: 14, borderWidth: selected ? 3 : 1, borderColor: selected ? t.primary : t.border, overflow: 'hidden', padding: 8, gap: 8, backgroundColor: style === 'midnight' ? '#0B0F1A' : t.bg }}>
+        <Hero compact variant={style} label="OUTSTANDING" value={84000} format={sample} stats={[{ label: 'In', value: 120000, format: sample }, { label: 'Cash', value: 45000, format: sample }]} />
+        <Row gap={6}>
+          {[0, 1].map((i) => (
+            <View key={i} style={{ flex: 1, height: 26, borderRadius: 8, backgroundColor: style === 'soft' ? t.bg : style === 'midnight' ? '#151B2E' : t.card, boxShadow: style === 'soft' ? softShadow(t, 3) : undefined, borderWidth: style === 'soft' ? 0 : 1, borderColor: style === 'midnight' ? '#22D3EE55' : t.border } as any} />
+          ))}
+        </Row>
+      </View>
+    );
+  }
   const box = { height: 150, borderRadius: 14, borderWidth: selected ? 3 : 1, borderColor: selected ? t.primary : t.border, overflow: 'hidden' as const, padding: 8, gap: 5 };
   const line = (w: string, c: string, h = 5) => <View style={{ width: w as any, height: h, borderRadius: 3, backgroundColor: c }} />;
   if (style === 'monetra')
@@ -232,7 +246,7 @@ const matches = (i: Invoice, f: string) =>
 
 // ---------------------------------------------------------------- 1. Monetra
 
-function MonetraStyle({ d, pending }: { d: DashboardSummary; pending: number }) {
+function MonetraStyle({ d, pending, variant }: { d: DashboardSummary; pending: number; variant?: HeroStyle }) {
   const t = useTheme();
   const { can } = useAuth();
   const money = (v: number) => fm(v, d);
@@ -245,9 +259,29 @@ function MonetraStyle({ d, pending }: { d: DashboardSummary; pending: number }) 
     { label: 'Partially Paid Invoices', value: d.partiallyPaidCount, icon: 'pie-chart', tone: t.warn, soft: t.warnSoft, go: 'partially_paid' },
     { label: 'Unpaid Invoices', value: d.unpaidCount, icon: 'time', tone: t.info, soft: t.infoSoft, go: 'unpaid' },
   ];
+  const ink = variant ? heroInk(variant, t) : null;
+  const tileStyle: any = variant === 'soft' ? { gap: 8, backgroundColor: t.bg, borderWidth: 0, boxShadow: softShadow(t, 6) } : variant === 'midnight' ? { gap: 8, borderColor: '#22D3EE55' } : { gap: 8 };
   return (
     <>
-      <FadeIn>
+      {variant && ink && (
+        <FadeIn>
+          <Hero
+            variant={variant}
+            label="OUTSTANDING BALANCE"
+            value={d.outstanding}
+            format={money}
+            stats={[
+              { label: 'Collected', value: d.totalReceived, format: money, icon: 'checkmark-circle' },
+              { label: 'Cash', value: d.cashBalance, format: money, icon: 'wallet' },
+            ]}>
+            <View style={{ height: 8, borderRadius: 4, backgroundColor: ink.track, marginTop: 14, overflow: 'hidden' }}>
+              <View style={{ width: `${collectedPct}%`, height: '100%', borderRadius: 4, backgroundColor: variant === 'midnight' ? '#22D3EE' : variant === 'soft' || variant === 'minimal' ? t.primary : '#86EFAC' }} />
+            </View>
+            <Text style={{ color: ink.sub, fontSize: 13, marginTop: 8 }}>{collectedPct}% of invoiced amount collected</Text>
+          </Hero>
+        </FadeIn>
+      )}
+      {!variant && <FadeIn>
         <LinearGradient colors={['#0B46D6', '#0A6FD0', '#0E9E8A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ borderRadius: 22, padding: 18, overflow: 'hidden' }}>
           <View pointerEvents="none" style={{ position: 'absolute', right: -40, top: -50, width: 170, height: 170, borderRadius: 85, backgroundColor: 'rgba(255,255,255,0.10)' }} />
           <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, fontWeight: '700', letterSpacing: 0.6 }}>OUTSTANDING BALANCE</Text>
@@ -260,11 +294,11 @@ function MonetraStyle({ d, pending }: { d: DashboardSummary; pending: number }) 
             <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>Cash {money(d.cashBalance)}</Text>
           </Row>
         </LinearGradient>
-      </FadeIn>
+      </FadeIn>}
       <Row style={{ flexWrap: 'wrap', alignItems: 'stretch' }} gap={10}>
         {tiles.map((x, n) => (
           <FadeIn key={x.label} delay={60 + n * 50} style={{ flexBasis: '47%', flexGrow: 1 }}>
-            <Card onPress={x.go ? () => router.push({ pathname: '/invoices', params: { status: x.go } }) : undefined} label={x.label} style={{ gap: 8 }}>
+            <Card onPress={x.go ? () => router.push({ pathname: '/invoices', params: { status: x.go } }) : undefined} label={x.label} style={tileStyle}>
               <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: x.soft, alignItems: 'center', justifyContent: 'center' }}>
                 <Ionicons name={x.icon} size={18} color={x.tone} />
               </View>
@@ -610,5 +644,8 @@ export function DashboardView({ style, d, pending }: { style: DashboardStyle; d:
   if (style === 'minimal') return <StudioStyle d={d} pending={pending} />;
   if (style === 'emerald') return <EmeraldStyle d={d} pending={pending} />;
   if (style === 'wallet') return <WalletStyle d={d} pending={pending} />;
+  if (style === 'glass') return <MonetraStyle d={d} pending={pending} variant="glass" />;
+  if (style === 'soft') return <MonetraStyle d={d} pending={pending} variant="soft" />;
+  if (style === 'midnight') return <MonetraStyle d={d} pending={pending} variant="midnight" />;
   return <MonetraStyle d={d} pending={pending} />;
 }

@@ -2,6 +2,8 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { DashboardView, StylePreview } from '@/components/dashboard-styles';
+import { NavStylePicker } from '@/components/nav-style-picker';
+import { reportDashboardStyle } from '@/components/styles-kit';
 import { LogoMark } from '@/components/logo';
 import { Chips, IconBtn, Loader, Row, Screen, Select, Sheet, Txt, addDays, todayStr } from '@/components/ui';
 import { api, qs, useApi } from '@/lib/api';
@@ -41,6 +43,7 @@ export default function Home() {
   const business = businesses.data?.find((b) => b.id === selectedId);
   const styleKey = selectedId || 'all';
   const style: DashboardStyle = overrides[styleKey] ?? business?.dashboardStyle ?? d?.dashboardStyle ?? 'monetra';
+  useEffect(() => reportDashboardStyle(style), [style]);
 
   async function chooseStyle(s: DashboardStyle) {
     setPicker(false);
@@ -134,6 +137,10 @@ export default function Home() {
             </Pressable>
           ))}
         </View>
+        <Txt v="h" style={{ marginTop: 8 }}>
+          Bottom bar style
+        </Txt>
+        <NavStylePicker />
       </Sheet>
     </Screen>
   );

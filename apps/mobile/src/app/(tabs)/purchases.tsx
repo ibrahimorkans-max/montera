@@ -1,12 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 import { Bars, monthLabel } from '@/components/charts';
 import { DocumentViewer } from '@/components/doc-viewer';
 import { purchasesListHtml, type Paper } from '@/lib/pdf';
 import { useDebounced } from '@/components/rows';
-import { Btn, Card, Chips, CountUp, Empty, FadeIn, Gradient, Loader, Row, Screen, SearchBar, Section, Txt, addDays, fd, fm, todayStr } from '@/components/ui';
+import { Hero, HeroStylePicker, useScreenStyle } from '@/components/styles-kit';
+import { Btn, Card, Chips, Empty, FadeIn, IconBtn, InstallmentBadge, Loader, Row, Screen, SearchBar, Section, Txt, addDays, fd, fm, todayStr } from '@/components/ui';
 import { qs, useApi } from '@/lib/api';
 import { useAuth, useTheme } from '@/lib/app-context';
 import { qtyToString, type BusinessProfile, type Purchase, type PurchaseSummary } from '@/lib/shared';
@@ -39,9 +40,12 @@ function PurchaseRow({ p }: { p: Purchase }) {
             {[p.number, fd(p.date), items].filter(Boolean).join(' · ')}
           </Txt>
         </View>
-        <Txt style={{ fontWeight: '800' }} color={t.danger}>
-          − {fm(p.total, p)}
-        </Txt>
+        <View style={{ alignItems: 'flex-end', gap: 4 }}>
+          <Txt style={{ fontWeight: '800' }} color={t.danger}>
+            − {fm(p.total, p)}
+          </Txt>
+          {(p.balance ?? 0) > 0 && <InstallmentBadge status={(p.paid ?? 0) > 0 ? 'partial' : 'pending'} />}
+        </View>
       </Row>
     </Card>
   );
@@ -89,6 +93,8 @@ export default function Purchases() {
   const money = (v: number) => fm(v, s);
   const businesses = useApi<BusinessProfile[]>('/businesses');
   const [viewer, setViewer] = useState(false);
+  const [look, setLook] = useScreenStyle('purchases');
+  const [picker, setPicker] = useState(false);
   const biz = businesses.data?.[0];
   const period = `${RANGE_LABELS[range]}${dates.from ? ` · ${fd(dates.from)} – ${fd(dates.to!)}` : ''}${query ? ` · “${query}”` : ''}`;
   const buildList = useCallback((paper: Paper) => (biz ? purchasesListHtml(list.data ?? [], biz, period, paper) : ''), [biz, list.data, period]);
@@ -101,10 +107,13 @@ export default function Purchases() {
 
   return (
     <Screen onRefresh={reload} refreshing={summary.refreshing}>
-      <View>
-        <Txt v="title">Purchases</Txt>
-        <Txt v="sub">What you bought, from whom, and how much it cost. Every bill is recorded as money out.</Txt>
-      </View>
+      <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <View style={{ flex: 1 }}>
+          <Txt v="title">Purchases</Txt>
+          <Txt v="sub">What you bought, from whom, and how much it cost. Paid amounts are recorded as money out.</Txt>
+        </View>
+        <IconBtn icon="color-palette-outline" label="Change purchases dashboard style" onPress={() => setPicker(true)} />
+      </Row>
       {can('finance.manage') && <Btn icon="add" title="New purchase" onPress={() => router.push('/purchase/new')} />}
       <Chips
         value={range}
@@ -121,22 +130,17 @@ export default function Purchases() {
         {s && (
           <>
             <FadeIn>
-              <Gradient>
-                <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, fontWeight: '600' }}>TOTAL PURCHASES</Text>
-                <CountUp value={s.total} format={money} style={{ color: '#fff', fontSize: 34, fontWeight: '800', letterSpacing: -0.5, marginTop: 2 }} />
-                <Row gap={10} style={{ marginTop: 14 }}>
-                  <View style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 16, padding: 12 }}>
-                    <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12.5, fontWeight: '600' }}>Bills</Text>
-                    <Text style={{ color: '#fff', fontSize: 17, fontWeight: '800', marginTop: 4 }}>{s.count}</Text>
-                  </View>
-                  <View style={{ flex: 1.4, backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 16, padding: 12 }}>
-                    <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12.5, fontWeight: '600' }}>Average bill</Text>
-                    <Text style={{ color: '#fff', fontSize: 17, fontWeight: '800', marginTop: 4 }} numberOfLines={1}>
-                      {money(s.average)}
-                    </Text>
-                  </View>
-                </Row>
-              </Gradient>
+              <Hero
+                variant={look}
+                label="TOTAL PURCHASES"
+                value={s.total}
+                format={money}
+                stats={[
+                  { label: 'Bills', value: s.count, format: String, icon: 'receipt-outline' },
+                  { label: 'Average', value: s.average, format: money, icon: 'analytics-outline' },
+                  { label: 'Unpaid', value: s.unpaid ?? 0, format: money, icon: 'time-outline' },
+                ]}
+              />
             </FadeIn>
 
             <FadeIn delay={80}>
@@ -203,6 +207,7 @@ export default function Purchases() {
           <PurchaseRow key={p.id} p={p} />
         ))}
       </Section>
+      <HeroStylePicker visible={picker} onClose={() => setPicker(false)} value={look} onChange={setLook} title="Purchases dashboard style" />
       {biz && <DocumentViewer visible={viewer} onClose={() => setViewer(false)} title="Purchases" fileName={`purchases-${dates.from ?? 'all'}`} build={buildList} defaultPaper="A4" />}
     </Screen>
   );

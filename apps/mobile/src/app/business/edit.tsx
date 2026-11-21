@@ -8,7 +8,7 @@ import { Btn, Card, Chips, Field, Loading, Row, Screen, Section, Txt } from '@/c
 import { api } from '@/lib/api';
 import { useTheme, useToast } from '@/lib/app-context';
 import { pickImage } from '@/lib/image';
-import { TEMPLATE_COLORS, invoiceHtml, type Paper } from '@/lib/pdf';
+import { DEFAULT_DISCLAIMER, TEMPLATE_COLORS, invoiceHtml, type Paper } from '@/lib/pdf';
 import { sampleInvoiceDoc } from '@/lib/sample';
 import { DASHBOARD_STYLES, DASHBOARD_STYLE_LABELS, INVOICE_TEMPLATES, INVOICE_TEMPLATE_LABELS, financialYear, type BusinessProfile, type DashboardStyle, type InvoiceTemplate } from '@/lib/shared';
 import { StylePreview } from '@/components/dashboard-styles';
@@ -16,7 +16,7 @@ import { StylePreview } from '@/components/dashboard-styles';
 type Form = Omit<BusinessProfile, 'id'>;
 const blank: Form = {
   legalName: '', tradingName: '', ownerName: '', logo: '', registrationNo: '', ntn: '', phone: '', whatsapp: '', email: '', address: '', website: '',
-  bankDetails: '', iban: '', paymentInstructions: '', signature: '', stamp: '', invoiceFooter: '', currency: 'PKR', currencyPrecision: 2,
+  bankDetails: '', iban: '', paymentInstructions: '', signature: '', stamp: '', invoiceFooter: '', invoiceDisclaimer: '', currency: 'PKR', currencyPrecision: 2,
   invoicePrefix: 'INV-', taxInclusive: false, rounding: 'none', invoiceTemplate: 'amber', accentColor: '', fyStartMonth: 7, numberReset: 'never', dashboardStyle: 'monetra', status: 'active',
 };
 const ACCENTS = ['', '#E9A23B', '#1F3A8A', '#4B3F9E', '#E0483E', '#0F766E', '#BE185D', '#334155'];
@@ -214,6 +214,7 @@ export default function BusinessEdit() {
         <Field label="IBAN" value={f.iban} onChangeText={(v) => set({ iban: v })} autoCapitalize="characters" />
         <Field label="Payment instructions" value={f.paymentInstructions} onChangeText={(v) => set({ paymentInstructions: v })} multiline />
         <Field label="Invoice footer" value={f.invoiceFooter} onChangeText={(v) => set({ invoiceFooter: v })} multiline placeholder="Thank you for your business!" />
+        <Field label="Disclaimer (end of every invoice and purchase slip)" value={f.invoiceDisclaimer} onChangeText={(v) => set({ invoiceDisclaimer: v })} multiline placeholder={DEFAULT_DISCLAIMER} hint="Leave empty to print the standard disclaimer." />
         <Field label="Invoice number prefix" value={f.invoicePrefix} onChangeText={(v) => set({ invoicePrefix: v })} autoCapitalize="characters" hint={`Next invoices look like ${f.invoicePrefix}00001`} />
       </Section>
 

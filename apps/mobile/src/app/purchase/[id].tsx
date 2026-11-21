@@ -3,11 +3,11 @@ import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Image, View } from 'react-native';
 import { DocumentViewer } from '@/components/doc-viewer';
-import { Btn, Card, KV, Loader, Row, Screen, Section, Txt, confirm, fd, fm } from '@/components/ui';
+import { Btn, Card, InstallmentBadge, KV, Loader, Row, Screen, Section, Txt, confirm, fd, fm, todayStr } from '@/components/ui';
 import { api, useApi } from '@/lib/api';
 import { useAuth, useTheme, useToast } from '@/lib/app-context';
-import { purchaseSlipHtml, type Paper } from '@/lib/pdf';
-import { PAYMENT_METHOD_LABELS, qtyToString, type BusinessProfile, type Purchase } from '@/lib/shared';
+import { purchaseSlipHtml, txnId, type Paper } from '@/lib/pdf';
+import { PAYMENT_METHOD_LABELS, qtyToString, type BusinessProfile, type InvoiceTemplate, type Purchase } from '@/lib/shared';
 
 export default function PurchaseDetail() {
   const t = useTheme();
@@ -19,8 +19,23 @@ export default function PurchaseDetail() {
   const [viewer, setViewer] = useState(false);
   const businesses = useApi<BusinessProfile[]>('/businesses');
   const biz = businesses.data?.find((b) => b.id === p?.businessId);
-  const buildDoc = useCallback((paper: Paper) => (p && biz ? purchaseSlipHtml(p, biz, paper) : ''), [p, biz]);
+  const buildDoc = useCallback((paper: Paper, template: InvoiceTemplate) => (p && biz ? purchaseSlipHtml(p, biz, paper, template) : ''), [p, biz]);
   const m = (v: number) => fm(v, p);
+  const [toggling, setToggling] = useState(-1);
+
+  async function setPaid(index: number, paid: boolean) {
+    if (!p) return;
+    setToggling(index);
+    try {
+      await api(`/purchases/${p.id}/installments/${index}`, { method: 'PUT', body: { paid } });
+      toast(paid ? `Installment ${index + 1} paid · ${m(p.installments[index].amount)} recorded as money out` : `Installment ${index + 1} marked unpaid`);
+      reload();
+    } catch (e: any) {
+      toast(e.message, 'error');
+    } finally {
+      setToggling(-1);
+    }
+  }
 
   async function remove() {
     if (!p) return;
@@ -57,10 +72,18 @@ export default function PurchaseDetail() {
                   </Txt>
                 </View>
               </Row>
-              <Txt v="small">Total paid</Txt>
+              <Txt v="small">{p.installments?.length ? 'Paid so far' : 'Total paid'}</Txt>
               <Txt style={{ fontWeight: '800', fontSize: 28 }} color={t.danger}>
-                − {m(p.total)}
+                − {m(p.paid ?? p.total)}
               </Txt>
+              {(p.balance ?? 0) > 0 && (
+                <Row gap={8}>
+                  <InstallmentBadge status={(p.paid ?? 0) > 0 ? 'partial' : 'pending'} />
+                  <Txt v="small">
+                    {m(p.balance)} still to pay of {m(p.total)}
+                  </Txt>
+                </Row>
+              )}
             </Card>
 
             <Btn icon="document-text-outline" title="Purchase slip · print, PDF or share" onPress={() => setViewer(true)} disabled={!biz} />
@@ -83,10 +106,40 @@ export default function PurchaseDetail() {
               </Card>
             </Section>
 
+            {(p.installments?.length ?? 0) > 0 && (
+              <Section title={`Installments (${p.installments.filter((x) => x.paid).length} of ${p.installments.length} paid)`}>
+                {p.installments.map((x, i) => (
+                  <Card key={i}>
+                    <Row gap={10}>
+                      <View style={{ flex: 1 }}>
+                        <Txt style={{ fontWeight: '700' }}>
+                          Installment {i + 1} · {m(x.amount)}
+                        </Txt>
+                        <Txt v="small">{x.paid ? `Paid${x.paidDate ? ` on ${fd(x.paidDate)}` : ''}` : `Due ${fd(x.dueDate)}`}</Txt>
+                      </View>
+                      <InstallmentBadge status={x.paid ? 'paid' : x.dueDate < todayStr() ? 'overdue' : 'pending'} />
+                    </Row>
+                    {can('finance.manage') && (
+                      <Btn
+                        small
+                        kind={x.paid ? 'secondary' : 'primary'}
+                        icon={x.paid ? 'arrow-undo-outline' : 'checkmark-circle-outline'}
+                        title={x.paid ? 'Mark unpaid' : 'Mark paid'}
+                        loading={toggling === i}
+                        disabled={toggling >= 0}
+                        onPress={() => setPaid(i, !x.paid)}
+                      />
+                    )}
+                  </Card>
+                ))}
+              </Section>
+            )}
+
             <Section title="Money out">
               <Card>
                 <KV k="Paid from" v={p.accountName || PAYMENT_METHOD_LABELS[p.method]} />
                 <KV k="Method" v={PAYMENT_METHOD_LABELS[p.method]} />
+                <KV k="Transaction ID" v={txnId(p.method, p.reference ?? '')} />
                 <KV k="Category" v={p.category} />
                 {!!p.notes && <KV k="Notes" v={p.notes} />}
                 <Txt v="small">This bill appears in Finance as money out and is included in your balances and Profit & Loss.</Txt>
@@ -108,7 +161,7 @@ export default function PurchaseDetail() {
           </>
         )}
       </Loader>
-      {p && biz && <DocumentViewer visible={viewer} onClose={() => setViewer(false)} title={`Purchase ${p.number}`} fileName={`purchase-${p.number}`} build={buildDoc} defaultPaper="A5" />}
+      {p && biz && <DocumentViewer visible={viewer} onClose={() => setViewer(false)} title={`Purchase ${p.number}`} fileName={`purchase-${p.number}`} build={buildDoc} template={biz.invoiceTemplate ?? 'amber'} defaultPaper="A5" />}
     </Screen>
   );
 }

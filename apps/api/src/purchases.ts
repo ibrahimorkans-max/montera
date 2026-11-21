@@ -30,6 +30,18 @@ export const purchaseSchema = z.object({
   method: z.enum(PAYMENT_METHODS).default('cash'),
   accountId: z.string().nullable().optional(),
   notes: z.string().trim().max(2000).default(''),
+  reference: z.string().trim().max(100).default(''),
+  installments: z
+    .array(
+      z.object({
+        dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD'),
+        amount: z.number().int().min(1, 'Each installment needs an amount'),
+        paid: z.boolean().default(false),
+        paidDate: z.string().optional(),
+      }),
+    )
+    .max(120)
+    .default([]),
   attachment: z.string().max(1_500_000).default(''),
   clientRequestId: z.string().min(8).max(64).optional(),
 });
@@ -42,8 +54,25 @@ const SELECT = `select p.*, coalesce(a.name, '') as account_name, b.currency, b.
   left join money_account a on a.id = p.account_id
   left join finance_entry e on e.purchase_id = p.id`;
 
+type Plan = { dueDate: string; amount: number; paid: boolean; paidDate?: string }[];
+const planOf = (r: Row): Plan => {
+  try {
+    return JSON.parse(r.installments || '[]');
+  } catch {
+    return [];
+  }
+};
+/** What has actually left the account: everything, or only the installments marked paid. */
+const paidOf = (total: number, plan: Plan) => (plan.length ? plan.filter((x) => x.paid).reduce((a, x) => a + x.amount, 0) : total);
+
 function map(r: Row): Purchase {
+  const plan = planOf(r);
+  const paid = paidOf(r.total, plan);
   return {
+    reference: r.reference ?? '',
+    installments: plan,
+    paid,
+    balance: r.total - paid,
     id: r.id,
     number: r.number,
     businessId: r.business_id,
@@ -79,9 +108,9 @@ function where(tenantId: string, f: PurchaseFilter): [string, any[]] {
   if (f.from) parts.push('p.date >= ?'), args.push(f.from);
   if (f.to) parts.push('p.date <= ?'), args.push(f.to);
   if (f.q) {
-    parts.push("(p.supplier like ? or p.number like ? or p.bill_no like ? or p.lines like ?)");
+    parts.push("(p.supplier like ? or p.number like ? or p.bill_no like ? or p.lines like ? or p.reference like ?)");
     const like = `%${f.q}%`;
-    args.push(like, like, like, like);
+    args.push(like, like, like, like, like);
   }
   return [parts.join(' and '), args];
 }
@@ -107,6 +136,9 @@ export function savePurchase(db: Db, auth: AuthContext, body: PurchaseBody, id?:
     const lines = body.lines.map((l) => ({ ...l, amount: lineAmount(l.qty, l.unitPrice) }));
     const total = lines.reduce((a, l) => a + l.amount, 0);
     if (total <= 0) throw new HttpError(422, 'The bill total must be above zero.');
+    const plan: Plan = body.installments.map((x) => ({ dueDate: x.dueDate, amount: x.amount, paid: x.paid, ...(x.paid ? { paidDate: x.paidDate || today() } : {}) }));
+    const planned = plan.reduce((a, x) => a + x.amount, 0);
+    if (plan.length && planned !== total) throw new HttpError(422, `The installments add up to ${planned / 10 ** (biz.currency_precision ?? 2)} but the bill total is ${total / 10 ** (biz.currency_precision ?? 2)}. Make them equal.`);
 
     ensureAccounts(db, { businessId: body.businessId });
     const account = body.accountId
@@ -121,8 +153,8 @@ export function savePurchase(db: Db, auth: AuthContext, body: PurchaseBody, id?:
       if (!old) throw new HttpError(404, 'Purchase not found.');
       number = old.number;
       db.run(
-        'update purchase set business_id=?, supplier=?, bill_no=?, date=?, lines=?, total=?, category=?, method=?, account_id=?, notes=?, attachment=?, updated_at=? where id=? and tenant_id=?',
-        body.businessId, body.supplier, body.billNo, body.date, JSON.stringify(lines), total, body.category, body.method, account.id, body.notes,
+        'update purchase set business_id=?, supplier=?, bill_no=?, date=?, lines=?, total=?, category=?, method=?, account_id=?, notes=?, reference=?, installments=?, attachment=?, updated_at=? where id=? and tenant_id=?',
+        body.businessId, body.supplier, body.billNo, body.date, JSON.stringify(lines), total, body.category, body.method, account.id, body.notes, body.reference, JSON.stringify(plan),
         // editing without a new photo keeps the saved one
         body.attachment || old.attachment, t, id, auth.tenantId,
       );
@@ -130,27 +162,61 @@ export function savePurchase(db: Db, auth: AuthContext, body: PurchaseBody, id?:
       id = uid();
       number = `PUR-${String(db.nextCounter(auth.tenantId, 'purchase')).padStart(4, '0')}`;
       db.run(
-        'insert into purchase (id, tenant_id, business_id, number, supplier, bill_no, date, lines, total, category, method, account_id, notes, attachment, client_request_id, created_by, created_at, updated_at) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-        id, auth.tenantId, body.businessId, number, body.supplier, body.billNo, body.date, JSON.stringify(lines), total, body.category, body.method, account.id, body.notes, body.attachment,
+        'insert into purchase (id, tenant_id, business_id, number, supplier, bill_no, date, lines, total, category, method, account_id, notes, reference, installments, attachment, client_request_id, created_by, created_at, updated_at) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        id, auth.tenantId, body.businessId, number, body.supplier, body.billNo, body.date, JSON.stringify(lines), total, body.category, body.method, account.id, body.notes, body.reference, JSON.stringify(plan), body.attachment,
         body.clientRequestId ?? null, auth.userId, t, t,
       );
     }
 
-    // the Money out entry that carries this bill into balances and reports
-    const notes = `Purchase ${number}${body.billNo ? ` · bill ${body.billNo}` : ''} · ${lines.map((l) => l.name).join(', ')}`.slice(0, 2000);
-    const entry = db.get('select id from finance_entry where purchase_id = ? and tenant_id = ?', id, auth.tenantId);
-    if (entry) {
-      db.run(
-        'update finance_entry set business_id=?, category=?, amount=?, date=?, method=?, party=?, notes=?, account_id=? where id=?',
-        body.businessId, body.category, total, body.date, body.method, body.supplier, notes, account.id, entry.id,
-      );
-    } else {
-      db.run(
-        "insert into finance_entry (id, tenant_id, business_id, type, category, amount, date, method, party, notes, account_id, purchase_id, created_by, created_at) values (?,?,?,'expense',?,?,?,?,?,?,?,?,?,?)",
-        uid(), auth.tenantId, body.businessId, body.category, total, body.date, body.method, body.supplier, notes, account.id, id, auth.userId, t,
-      );
-    }
+    syncEntry(db, auth, id);
     db.audit(auth.tenantId, auth.userId, 'purchase.save', 'purchase', id, { number, total, currency: biz.currency });
+    return getPurchase(db, auth.tenantId, id);
+  });
+}
+
+/**
+ * Keep the bill's Money out entry equal to what has been paid: the whole total, or the sum of
+ * installments marked paid. Nothing paid yet means no entry, so balances are untouched.
+ */
+function syncEntry(db: Db, auth: AuthContext, id: string) {
+  const p = db.get('select * from purchase where id = ? and tenant_id = ?', id, auth.tenantId);
+  if (!p) throw new HttpError(404, 'Purchase not found.');
+  const plan = planOf(p);
+  const paid = paidOf(p.total, plan);
+  const lines = JSON.parse(p.lines) as { name: string }[];
+  const planNote = plan.length ? ` · ${plan.filter((x) => x.paid).length} of ${plan.length} installments paid` : '';
+  const notes = `Purchase ${p.number}${p.bill_no ? ` · bill ${p.bill_no}` : ''}${p.reference ? ` · txn ${p.reference}` : ''}${planNote} · ${lines.map((l) => l.name).join(', ')}`.slice(0, 2000);
+  // the entry is dated when the money last left: the bill date, or the latest paid installment
+  const date = plan.length ? plan.filter((x) => x.paid).map((x) => x.paidDate || p.date).sort().pop() || p.date : p.date;
+  const entry = db.get('select id from finance_entry where purchase_id = ? and tenant_id = ?', id, auth.tenantId);
+  if (paid <= 0) {
+    if (entry) db.run('delete from finance_entry where id = ?', entry.id);
+    return;
+  }
+  if (entry) {
+    db.run(
+      'update finance_entry set business_id=?, category=?, amount=?, date=?, method=?, party=?, notes=?, account_id=? where id=?',
+      p.business_id, p.category, paid, date, p.method, p.supplier, notes, p.account_id, entry.id,
+    );
+  } else {
+    db.run(
+      "insert into finance_entry (id, tenant_id, business_id, type, category, amount, date, method, party, notes, account_id, purchase_id, created_by, created_at) values (?,?,?,'expense',?,?,?,?,?,?,?,?,?,?)",
+      uid(), auth.tenantId, p.business_id, p.category, paid, date, p.method, p.supplier, notes, p.account_id, id, auth.userId, now(),
+    );
+  }
+}
+
+/** Mark one installment of a bill paid or unpaid; its money out follows. */
+export function setInstallmentPaid(db: Db, auth: AuthContext, id: string, index: number, paid: boolean): Purchase {
+  return db.tx(() => {
+    const p = db.get('select * from purchase where id = ? and tenant_id = ?', id, auth.tenantId);
+    if (!p) throw new HttpError(404, 'Purchase not found.');
+    const plan = planOf(p);
+    if (!plan[index]) throw new HttpError(404, 'Installment not found.');
+    plan[index] = { dueDate: plan[index].dueDate, amount: plan[index].amount, paid, ...(paid ? { paidDate: today() } : {}) };
+    db.run('update purchase set installments = ?, updated_at = ? where id = ?', JSON.stringify(plan), now(), id);
+    syncEntry(db, auth, id);
+    db.audit(auth.tenantId, auth.userId, paid ? 'purchase.installment_paid' : 'purchase.installment_unpaid', 'purchase', id, { number: p.number, index });
     return getPurchase(db, auth.tenantId, id);
   });
 }
@@ -180,7 +246,8 @@ export function suppliers(db: Db, tenantId: string): string[] {
 export function purchaseSummary(db: Db, tenantId: string, f: PurchaseFilter): PurchaseSummary {
   const biz = f.businessId ? ownedRow(db, 'business', tenantId, f.businessId) : db.get('select * from business where tenant_id = ? order by created_at limit 1', tenantId);
   const [w, args] = where(tenantId, f);
-  const rows = db.all(`select p.supplier, p.lines, p.total from purchase p where ${w}`, ...args);
+  const rows = db.all(`select p.supplier, p.lines, p.total, p.installments from purchase p where ${w}`, ...args);
+  const unpaid = rows.reduce((a, r) => a + (r.total - paidOf(r.total, planOf(r))), 0);
 
   const suppliersMap = new Map<string, { name: string; amount: number; count: number }>();
   const items = new Map<string, { name: string; qty: number; unit: string; amount: number }>();
@@ -211,6 +278,7 @@ export function purchaseSummary(db: Db, tenantId: string, f: PurchaseFilter): Pu
 
   const total = rows.reduce((a, r) => a + r.total, 0);
   return {
+    unpaid,
     total,
     count: rows.length,
     average: rows.length ? Math.round(total / rows.length) : 0,

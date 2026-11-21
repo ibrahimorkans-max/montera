@@ -212,6 +212,21 @@ export const MIGRATIONS: [table: string, column: string, definition: string][] =
     "text not null default 'monetra'"
   ],
   [
+    "business",
+    "invoice_disclaimer",
+    "text not null default ''"
+  ],
+  [
+    "purchase",
+    "reference",
+    "text not null default ''"
+  ],
+  [
+    "purchase",
+    "installments",
+    "text not null default '[]'"
+  ],
+  [
     "client",
     "credit_limit",
     "integer not null default 0"

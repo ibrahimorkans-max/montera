@@ -76,7 +76,7 @@ export default function Receipt() {
               <KV k="Payment ID" v={p.number} />
               <KV k="Date" v={fd(p.date)} />
               <KV k="Method" v={PAYMENT_METHOD_LABELS[p.method]} />
-              {!!p.reference && <KV k="Transaction reference" v={p.reference} />}
+              <KV k="Transaction ID" v={p.method === 'cash' ? 'Cash' : p.reference || '—'} />
               <KV k="Received by" v={p.receivedBy} />
               {!!p.notes && <KV k="Notes" v={p.notes} />}
             </Card>

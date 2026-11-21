@@ -47,13 +47,16 @@ export const INVOICE_TEMPLATES = ['amber', 'ocean', 'violet', 'crimson', 'classi
 export type InvoiceTemplate = (typeof INVOICE_TEMPLATES)[number];
 export const INVOICE_TEMPLATE_LABELS: Record<InvoiceTemplate, string> = { amber: 'Amber Edge', ocean: 'Ocean Shapes', violet: 'Violet Clean', crimson: 'Crimson Corporate', classic: 'Classic Mono' };
 
-export const DASHBOARD_STYLES = ['monetra', 'minimal', 'emerald', 'wallet'] as const;
+export const DASHBOARD_STYLES = ['monetra', 'minimal', 'emerald', 'wallet', 'glass', 'soft', 'midnight'] as const;
 export type DashboardStyle = (typeof DASHBOARD_STYLES)[number];
 export const DASHBOARD_STYLE_LABELS: Record<DashboardStyle, { name: string; hint: string }> = {
   monetra: { name: 'Monetra', hint: 'Blue gradient balance card with stat tiles' },
   minimal: { name: 'Studio', hint: 'Clean white, revenue bars and status tabs' },
   emerald: { name: 'Emerald Report', hint: 'Dark green report card with a trend line' },
   wallet: { name: 'Wallet', hint: 'Money balance, quick actions and spending ring' },
+  glass: { name: 'Glass', hint: 'Frosted glass cards over a violet glow' },
+  soft: { name: 'Soft (Neumorphism)', hint: 'Raised soft cards with gentle shadows' },
+  midnight: { name: 'Midnight', hint: 'Dark card with neon accents' },
 };
 
 export const INCOME_CATEGORIES = ['Sales', 'Services', 'Owner investment', 'Loan received', 'Other income'] as const;
@@ -103,13 +106,30 @@ export interface Purchase {
   accountId: string | null;
   accountName: string;
   notes: string;
+  /** bank / wallet transaction ID; empty for cash */
+  reference: string;
+  /** optional payment plan with the supplier; empty = paid in full on the bill date */
+  installments: PurchaseInstallment[];
+  /** amount paid so far (money out); equals total when there is no plan */
+  paid: number;
+  /** still owed to the supplier */
+  balance: number;
   hasAttachment: boolean;
   financeEntryId: string | null;
   currency: string;
   currencyPrecision: number;
   createdAt: string;
 }
+export interface PurchaseInstallment {
+  dueDate: string;
+  amount: number;
+  paid: boolean;
+  /** date it was marked paid */
+  paidDate?: string;
+}
 export interface PurchaseSummary {
+  /** still owed to suppliers on bills with an installment plan */
+  unpaid: number;
   total: number;
   count: number;
   average: number;
@@ -165,6 +185,8 @@ export interface BusinessProfile {
   signature: string;
   stamp: string;
   invoiceFooter: string;
+  /** printed in the Disclaimer section at the end of every invoice, quotation and purchase slip */
+  invoiceDisclaimer: string;
   currency: string;
   currencyPrecision: number;
   invoicePrefix: string;

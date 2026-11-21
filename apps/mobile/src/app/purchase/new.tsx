@@ -1,9 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Image, Pressable, Text, View } from 'react-native';
+import { Image, Pressable, Switch, Text, View } from 'react-native';
 import { AccountSelect } from '@/components/money';
-import { Btn, Card, Chips, DateField, Field, IconBtn, Loader, Notice, Row, Screen, Section, Select, Txt, addDays, fm, isDate, todayStr } from '@/components/ui';
+import { Btn, Card, Chips, DateField, Field, IconBtn, InstallmentBadge, KV, Loader, Notice, Row, Screen, Section, Select, Txt, addDays, addMonths, fm, isDate, todayStr } from '@/components/ui';
 import { api, useApi } from '@/lib/api';
 import { useTheme, useToast } from '@/lib/app-context';
 import { pickImage } from '@/lib/image';
@@ -50,6 +50,9 @@ export default function NewPurchase() {
   const [method, setMethod] = useState<PaymentMethod>('cash');
   const [accountId, setAccountId] = useState('');
   const [notes, setNotes] = useState('');
+  const [reference, setReference] = useState('');
+  const [onPlan, setOnPlan] = useState(false);
+  const [plan, setPlan] = useState<{ key: string; dueDate: string; amount: string; paid: boolean }[]>([]);
   const [attachment, setAttachment] = useState('');
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -74,6 +77,9 @@ export default function NewPurchase() {
     setMethod(p.method);
     setAccountId(p.accountId ?? '');
     setNotes(p.notes);
+    setReference(p.reference ?? '');
+    setOnPlan((p.installments ?? []).length > 0);
+    setPlan((p.installments ?? []).map((x) => ({ key: newKey(), dueDate: x.dueDate, amount: moneyToInput(x.amount, p.currencyPrecision), paid: x.paid })));
   }, [editing.data]);
 
   const amounts = lines.map((l) => {
@@ -83,6 +89,23 @@ export default function NewPurchase() {
   });
   const total = amounts.reduce((a, b) => a + b, 0);
   const setLine = (key: string, p: Partial<Line>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...p } : l)));
+  const planAmounts = plan.map((x) => parseMoney(x.amount || '0', precision) ?? 0);
+  const planSum = planAmounts.reduce((a, b) => a + b, 0);
+  const planPaid = plan.reduce((a, x, i) => a + (x.paid ? planAmounts[i] : 0), 0);
+  const paidNow = onPlan ? planPaid : total;
+  /** Split the bill into n monthly installments; the first absorbs any rounding. */
+  function split(n: number) {
+    const unit = 10 ** precision;
+    const each = Math.floor(total / n / unit) * unit;
+    setPlan(
+      Array.from({ length: n }, (_, i) => ({
+        key: newKey(),
+        dueDate: addMonths(isDate(date) ? date : todayStr(), i),
+        amount: moneyToInput(i === 0 ? total - each * (n - 1) : each, precision),
+        paid: false,
+      })),
+    );
+  }
   const known = (supplierList.data ?? []).filter((s) => s.toLowerCase().includes(supplier.trim().toLowerCase()) && s !== supplier).slice(0, 6);
 
   async function save() {
@@ -100,6 +123,11 @@ export default function NewPurchase() {
     }
     if (!e.lines && total <= 0) e.lines = 'The bill total must be above zero';
     if (!bizId) e.business = 'Choose a business';
+    if (onPlan && !e.lines) {
+      if (!plan.length) e.plan = 'Add installments, or turn off "Pay in installments"';
+      else if (plan.some((x, i) => !isDate(x.dueDate) || planAmounts[i] <= 0)) e.plan = 'Every installment needs a date and an amount';
+      else if (planSum !== total) e.plan = `Installments add up to ${money(planSum)} but the bill is ${money(total)}`;
+    }
     setErrors(e);
     if (Object.keys(e).length) return toast(Object.values(e)[0], 'error');
     setBusy(true);
@@ -114,11 +142,13 @@ export default function NewPurchase() {
         method,
         accountId: accountId || null,
         notes: notes.trim(),
+        reference: method === 'cash' ? '' : reference.trim(),
+        installments: onPlan ? plan.map((x, i) => ({ dueDate: x.dueDate, amount: planAmounts[i], paid: x.paid })) : [],
         attachment,
         ...(id ? {} : { clientRequestId: requestId.current }),
       };
       const saved = await api<Purchase>(id ? `/purchases/${id}` : '/purchases', { method: id ? 'PUT' : 'POST', body: payload });
-      toast(`${saved.number ?? 'Purchase'} saved · ${money(saved.total ?? total)} recorded as money out`);
+      toast(`${saved.number ?? 'Purchase'} saved · ${money(saved.paid ?? paidNow)} recorded as money out`);
       if (id) router.back();
       else router.replace({ pathname: '/purchase/[id]', params: { id: saved.id } });
     } catch (err: any) {
@@ -133,15 +163,15 @@ export default function NewPurchase() {
       footer={
         <Row gap={10}>
           <View style={{ flex: 1 }}>
-            <Txt v="small">Bill total</Txt>
-            <Txt style={{ fontWeight: '800', fontSize: 20 }}>{money(total)}</Txt>
+            <Txt v="small">{onPlan ? `Bill ${money(total)} · paying now` : 'Bill total'}</Txt>
+            <Txt style={{ fontWeight: '800', fontSize: 20 }}>{money(paidNow)}</Txt>
           </View>
           <Btn style={{ flex: 1.3 }} icon="checkmark" title={id ? 'Save changes' : 'Save purchase'} onPress={save} loading={busy} />
         </Row>
       }>
       <Stack.Screen options={{ title: id ? 'Edit Purchase' : 'New Purchase' }} />
       <Loader loading={!!id && editing.loading && !editing.data} error={id && !editing.data ? editing.error : ''} onRetry={editing.reload}>
-        <Notice kind="info">The bill total is recorded as Money out and taken from the account you pay with.</Notice>
+        <Notice kind="info">The amount you pay is recorded as Money out and taken from the account you pay with. On installments, only paid ones count.</Notice>
 
         <Section title="Supplier">
           <Field label="Bought from" value={supplier} onChangeText={setSupplier} placeholder="Shop or supplier name" error={errors.supplier} />
@@ -207,7 +237,67 @@ export default function NewPurchase() {
             }}
             options={PAYMENT_METHODS.map((x) => ({ value: x, label: PAYMENT_METHOD_LABELS[x] }))}
           />
+          {method === 'cash' ? (
+            <Txt v="small">Transaction ID: Cash</Txt>
+          ) : (
+            <Field label="Transaction ID" value={reference} onChangeText={setReference} placeholder="Bank / JazzCash / Easypaisa transaction ID or cheque no." />
+          )}
           <AccountSelect label="Paid from" accounts={(accounts.data ?? []).filter((a) => a.businessId === bizId)} value={accountId} onChange={setAccountId} />
+          <Card>
+            <Row style={{ justifyContent: 'space-between' }}>
+              <View style={{ flex: 1 }}>
+                <Txt style={{ fontWeight: '700' }}>Pay in installments</Txt>
+                <Txt v="small">Only installments marked paid are taken out as money out.</Txt>
+              </View>
+              <Switch
+                accessibilityLabel="Pay in installments"
+                value={onPlan}
+                onValueChange={(on) => {
+                  setOnPlan(on);
+                  if (on && !plan.length && total > 0) split(2);
+                }}
+              />
+            </Row>
+          </Card>
+          {onPlan && (
+            <>
+              <Row style={{ flexWrap: 'wrap' }}>
+                <Txt v="small">Split into:</Txt>
+                {[2, 3, 4, 6, 12].map((n) => (
+                  <Btn key={n} small kind="secondary" title={`${n}`} onPress={() => split(n)} />
+                ))}
+                <Btn small kind="secondary" icon="add" title="Add" onPress={() => setPlan((ps) => [...ps, { key: newKey(), dueDate: date, amount: '', paid: false }])} />
+              </Row>
+              {!!errors.plan && <Notice kind="danger">{errors.plan}</Notice>}
+              {plan.map((s, i) => {
+                const patch = (p: Partial<typeof s>) => setPlan((ps) => ps.map((x) => (x.key === s.key ? { ...x, ...p } : x)));
+                return (
+                  <Card key={s.key}>
+                    <Row style={{ justifyContent: 'space-between' }}>
+                      <Txt v="label">Installment {i + 1}</Txt>
+                      <IconBtn icon="trash-outline" label={`Remove installment ${i + 1}`} color={t.danger} onPress={() => setPlan((ps) => ps.filter((x) => x.key !== s.key))} />
+                    </Row>
+                    <Row gap={10} style={{ alignItems: 'flex-start' }}>
+                      <View style={{ flex: 1 }}>
+                        <DateField label="Due date" value={s.dueDate} onChange={(v) => patch({ dueDate: v })} />
+                      </View>
+                      <Field style={{ flex: 1 }} label="Amount" money placeholder="0" value={s.amount} onChangeText={(v) => patch({ amount: v })} />
+                    </Row>
+                    <Row style={{ justifyContent: 'space-between' }}>
+                      <InstallmentBadge status={s.paid ? 'paid' : 'pending'} />
+                      <Row gap={8}>
+                        <Txt v="small">{s.paid ? 'Paid' : 'Unpaid'}</Txt>
+                        <Switch accessibilityLabel={`Installment ${i + 1} paid`} value={s.paid} onValueChange={(on) => patch({ paid: on })} />
+                      </Row>
+                    </Row>
+                  </Card>
+                );
+              })}
+              {plan.length > 0 && <KV k="Scheduled" v={`${money(planSum)} of ${money(total)}`} color={planSum !== total ? t.danger : undefined} />}
+              <KV k="Paid now (money out)" v={money(planPaid)} color={t.danger} />
+              <KV k="Still to pay supplier" v={money(Math.max(0, total - planPaid))} />
+            </>
+          )}
           <Txt v="label">Category</Txt>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             {CATEGORIES.map((c) => {

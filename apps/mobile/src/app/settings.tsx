@@ -1,3 +1,4 @@
+import { NavStylePicker } from '@/components/nav-style-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -180,6 +181,8 @@ export default function Settings() {
             { value: 'dark', label: 'Dark' },
           ]}
         />
+        <Txt v="label">Bottom bar style</Txt>
+        <NavStylePicker />
       </Section>
 
       <Section title="Account">

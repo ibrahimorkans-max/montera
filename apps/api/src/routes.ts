@@ -259,6 +259,9 @@ export function registerRoutes(app: AppLike, db: Db) {
   app.get('/purchases/:id', need('reports.view'), (req: Req, res: Res) => res.json(pur.getPurchase(db, T(req), String(req.params.id))));
   app.post('/purchases', need('finance.manage'), (req: Req, res: Res) => res.status(201).json(pur.savePurchase(db, req.auth, pur.purchaseSchema.parse(req.body))));
   app.put('/purchases/:id', need('finance.manage'), (req: Req, res: Res) => res.json(pur.savePurchase(db, req.auth, pur.purchaseSchema.parse(req.body), String(req.params.id))));
+  app.put('/purchases/:id/installments/:n', need('finance.manage'), (req: Req, res: Res) =>
+    res.json(pur.setInstallmentPaid(db, req.auth, String(req.params.id), Number(req.params.n), z.object({ paid: z.boolean() }).parse(req.body).paid)),
+  );
   app.delete('/purchases/:id', need('finance.manage'), (req: Req, res: Res) => {
     pur.deletePurchase(db, req.auth, String(req.params.id));
     res.json({ ok: true });

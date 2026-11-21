@@ -87,3 +87,40 @@ test('a purchase bill is money out, and its dashboard adds it up', async () => {
   const bad = await call(token, 'POST', '/purchases', { businessId, supplier: '', date: day, lines: [] });
   assert.equal(bad.status, 422);
 });
+
+test('a purchase on installments only counts what has been paid', async () => {
+  const r = await call('', 'POST', '/auth/register', { businessName: 'Plan Co', name: 'Owner', email: 'plan@test.dev', password: 'test-pass-123' });
+  const token = r.body.accessToken as string;
+  const businessId = (await call(token, 'GET', '/businesses')).body[0].id as string;
+  const lines = [{ name: 'Generator', qty: 1000, unit: '', unitPrice: 300_000 }];
+
+  // installments must add up to the bill
+  const bad = await call(token, 'POST', '/purchases', { businessId, supplier: 'Power Ltd', date: day, method: 'bank_transfer', lines, installments: [{ dueDate: day, amount: 100_000 }] });
+  assert.equal(bad.status, 422);
+
+  const p = await call(token, 'POST', '/purchases', {
+    businessId, supplier: 'Power Ltd', date: day, method: 'bank_transfer', reference: 'TXN-123', lines,
+    installments: [
+      { dueDate: day, amount: 100_000, paid: true },
+      { dueDate: day, amount: 200_000, paid: false },
+    ],
+  });
+  assert.equal(p.status, 201, JSON.stringify(p.body));
+  assert.equal(p.body.reference, 'TXN-123');
+  assert.equal(p.body.paid, 100_000);
+  assert.equal(p.body.balance, 200_000);
+  assert.equal((await call(token, 'GET', '/finance/summary')).body.expense, 100_000);
+  assert.equal((await call(token, 'GET', '/purchases/summary')).body.unpaid, 200_000);
+
+  // paying the second installment moves the rest out
+  const paid = await call(token, 'PUT', `/purchases/${p.body.id}/installments/1`, { paid: true });
+  assert.equal(paid.status, 200, JSON.stringify(paid.body));
+  assert.equal(paid.body.balance, 0);
+  assert.equal((await call(token, 'GET', '/finance/summary')).body.expense, 300_000);
+
+  // unpaying everything removes the money out entirely
+  await call(token, 'PUT', `/purchases/${p.body.id}/installments/0`, { paid: false });
+  await call(token, 'PUT', `/purchases/${p.body.id}/installments/1`, { paid: false });
+  assert.equal((await call(token, 'GET', '/finance/entries?type=expense')).body.length, 0);
+  assert.equal((await call(token, 'GET', `/purchases/${p.body.id}`)).body.balance, 300_000);
+});
